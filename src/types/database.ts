@@ -20,6 +20,8 @@ export interface Database {
           from_name: string | null
           reply_to_email: string | null
           resend_domain_verified: boolean
+          google_refresh_token: string | null
+          google_location_name: string | null
           created_at: string
         }
         Insert: {
@@ -38,6 +40,8 @@ export interface Database {
           from_name?: string | null
           reply_to_email?: string | null
           resend_domain_verified?: boolean
+          google_refresh_token?: string | null
+          google_location_name?: string | null
           created_at?: string
         }
         Update: {
@@ -56,6 +60,8 @@ export interface Database {
           from_name?: string | null
           reply_to_email?: string | null
           resend_domain_verified?: boolean
+          google_refresh_token?: string | null
+          google_location_name?: string | null
           created_at?: string
         }
         Relationships: []
@@ -342,6 +348,72 @@ export interface Database {
           sent_at?: string
           clicked_at?: string | null
           review_url?: string | null
+        }
+        Relationships: []
+      }
+      content_posts: {
+        Row: {
+          id: string
+          account_id: string
+          template_type: string
+          prompt_data: Json
+          image_url: string | null
+          captions: Json
+          status: string
+          scheduled_date: string | null
+          google_posted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          account_id: string
+          template_type: string
+          prompt_data?: Json
+          image_url?: string | null
+          captions?: Json
+          status?: string
+          scheduled_date?: string | null
+          google_posted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          account_id?: string
+          template_type?: string
+          prompt_data?: Json
+          image_url?: string | null
+          captions?: Json
+          status?: string
+          scheduled_date?: string | null
+          google_posted_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      content_cadence_settings: {
+        Row: {
+          account_id: string
+          instagram_per_week: number
+          facebook_per_week: number
+          google_per_week: number
+          reminder_type: string
+          preferred_days: Json
+        }
+        Insert: {
+          account_id: string
+          instagram_per_week?: number
+          facebook_per_week?: number
+          google_per_week?: number
+          reminder_type?: string
+          preferred_days?: Json
+        }
+        Update: {
+          account_id?: string
+          instagram_per_week?: number
+          facebook_per_week?: number
+          google_per_week?: number
+          reminder_type?: string
+          preferred_days?: Json
         }
         Relationships: []
       }

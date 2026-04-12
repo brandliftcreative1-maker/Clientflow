@@ -11,6 +11,7 @@ import {
   Megaphone,
   Star,
   Wand2,
+  ImagePlay,
   Settings,
   LogOut,
 } from 'lucide-react'
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/contacts', label: 'Contacts', icon: Users },
   { href: '/dashboard/sequences', label: 'Sequences', icon: Mail },
+  { href: '/dashboard/content', label: 'Social Content', icon: ImagePlay },
   { href: '/dashboard/campaigns', label: 'Campaigns', icon: Megaphone },
   { href: '/dashboard/reviews', label: 'Review Requests', icon: Star },
   { href: '/dashboard/ai-writer', label: 'AI Email Writer', icon: Wand2 },
