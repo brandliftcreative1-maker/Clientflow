@@ -1,0 +1,78 @@
+<h2>Section 3: Sending Engine + Unsubscribe</h2>
+<p class="subtitle">How emails get sent on schedule, and how contacts opt out</p>
+
+<div class="section">
+  <h3>The Cron Endpoint — POST /api/cron/process-sequences</h3>
+  <p style="font-size:13px;color:#6b7280;margin-bottom:12px">A single API route that any scheduler can call (Vercel cron, Upstash, a cron job, even a manual button for testing). Protected by a secret token in the header.</p>
+
+  <div style="display:flex;align-items:flex-start;gap:12px;font-size:13px">
+    <!-- Flow steps -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+      <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;background:#f9fafb">
+        <div style="font-weight:600;color:#111827;margin-bottom:2px">1. Find due enrollments</div>
+        <div style="font-size:12px;color:#6b7280">Query <code>sequence_enrollments</code> where <code>status = 'active'</code> and <code>next_send_at ≤ now()</code></div>
+      </div>
+      <div style="text-align:center;color:#d1d5db;font-size:18px">↓</div>
+      <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;background:#f9fafb">
+        <div style="font-weight:600;color:#111827;margin-bottom:2px">2. Send email via Resend</div>
+        <div style="font-size:12px;color:#6b7280">Fetch step content, replace <code>[First Name]</code> tokens, send with unsubscribe link appended</div>
+      </div>
+      <div style="text-align:center;color:#d1d5db;font-size:18px">↓</div>
+      <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;background:#f9fafb">
+        <div style="font-weight:600;color:#111827;margin-bottom:2px">3. Log to email_logs</div>
+        <div style="font-size:12px;color:#6b7280">Record <code>contact_id</code>, <code>sequence_step_id</code>, <code>resend_id</code>, status = 'sent'</div>
+      </div>
+      <div style="text-align:center;color:#d1d5db;font-size:18px">↓</div>
+      <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;background:#f9fafb">
+        <div style="font-weight:600;color:#111827;margin-bottom:2px">4. Advance or complete</div>
+        <div style="font-size:12px;color:#6b7280">If more steps: increment <code>current_step</code>, set <code>next_send_at = now() + delay_days</code>. If last step: set <code>status = 'completed'</code></div>
+      </div>
+    </div>
+
+    <!-- Note box -->
+    <div style="width:200px;background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:12px;font-size:12px;color:#92400e">
+      <div style="font-weight:600;margin-bottom:6px">⚡ Run frequency</div>
+      <div>Call this endpoint every 15–60 minutes. Emails send within one check window of their scheduled time. No emails are skipped — the processor catches up if it missed a window.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Unsubscribe Flow</h3>
+  <p style="font-size:13px;color:#6b7280;margin-bottom:12px">Every sequence email gets an unsubscribe link in the footer. One click, no login required.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:6px">Footer appended to every sequence email:</div>
+      <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;font-size:12px;color:#9ca3af;line-height:1.6">
+        ---<br>
+        You received this email from [Business Name].<br>
+        <span style="color:#2563eb;text-decoration:underline">Unsubscribe</span> · [Business Name] · [City, State]
+      </div>
+    </div>
+    <div>
+      <div style="font-size:12px;color:#6b7280;margin-bottom:6px">GET /unsubscribe?token=… page:</div>
+      <div style="border:1px solid #e5e7eb;border-radius:8px;padding:20px;text-align:center;font-size:13px">
+        <div style="font-size:22px;margin-bottom:8px">✅</div>
+        <div style="font-weight:600;color:#111827;margin-bottom:4px">You've been unsubscribed</div>
+        <div style="color:#6b7280;font-size:12px">You won't receive any more emails from [Business Name].</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;font-size:12px;color:#166534">
+    <strong>What happens on unsubscribe:</strong> Contact status → <code>unsubscribed</code> · All active enrollments → <code>cancelled</code> · Future sends skipped · Token is a signed JWT (no DB lookup needed to verify)
+  </div>
+</div>
+
+<div class="section">
+  <h3>Schema addition needed</h3>
+  <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;font-size:12px;background:#f9fafb">
+    <div style="font-weight:500;color:#374151;margin-bottom:6px">New migration required:</div>
+    <code style="color:#7c3aed">ALTER TABLE contacts ADD COLUMN birthday DATE;</code><br>
+    <code style="color:#7c3aed">ALTER TABLE contacts ADD COLUMN custom_trigger TEXT;</code>
+    <div style="color:#6b7280;margin-top:6px">Birthday enables the birthday cron check. The contacts Add/Edit form will expose both fields.</div>
+  </div>
+</div>
+
+<p style="font-size:13px;color:#6b7280;text-align:center;margin-top:8px">Does this sending + unsubscribe design look right? Any questions before I write the spec?</p>

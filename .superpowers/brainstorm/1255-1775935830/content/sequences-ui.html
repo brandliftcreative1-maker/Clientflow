@@ -1,0 +1,148 @@
+<h2>Section 1: Sequences Manager UI</h2>
+<p class="subtitle">Two pages — a list and a full-page editor. Does this layout feel right?</p>
+
+<div class="section">
+  <h3>Page 1 — /dashboard/sequences (list)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Sequences</div>
+    <div class="mockup-body" style="padding:0">
+
+      <!-- Toolbar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e5e7eb">
+        <div style="font-size:13px;color:#6b7280">3 sequences · 2 active</div>
+        <div style="display:flex;gap:8px">
+          <div class="mock-button" style="background:#f3f4f6;color:#374151;font-size:12px">✨ AI Generate</div>
+          <div class="mock-button" style="font-size:12px">+ New Sequence</div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#f9fafb;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.05em">
+            <th style="padding:10px 20px;text-align:left">Name</th>
+            <th style="padding:10px;text-align:left">Trigger</th>
+            <th style="padding:10px;text-align:center">Steps</th>
+            <th style="padding:10px;text-align:center">Enrolled</th>
+            <th style="padding:10px;text-align:center">Active</th>
+            <th style="padding:10px;text-align:right"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-top:1px solid #f3f4f6">
+            <td style="padding:14px 20px">
+              <div style="font-weight:500;color:#111827">New Client Welcome</div>
+              <div style="font-size:11px;color:#9ca3af">3-step onboarding sequence</div>
+            </td>
+            <td style="padding:14px 10px"><span style="background:#dbeafe;color:#1d4ed8;font-size:11px;padding:2px 8px;border-radius:99px">New contact</span></td>
+            <td style="padding:14px 10px;text-align:center;color:#374151">3</td>
+            <td style="padding:14px 10px;text-align:center;color:#374151">14</td>
+            <td style="padding:14px 10px;text-align:center">
+              <div style="width:36px;height:20px;background:#2563eb;border-radius:99px;margin:0 auto;position:relative">
+                <div style="width:16px;height:16px;background:white;border-radius:50%;position:absolute;right:2px;top:2px"></div>
+              </div>
+            </td>
+            <td style="padding:14px 20px;text-align:right">
+              <span style="color:#6b7280;font-size:12px;cursor:pointer">Edit ›</span>
+            </td>
+          </tr>
+          <tr style="border-top:1px solid #f3f4f6">
+            <td style="padding:14px 20px">
+              <div style="font-weight:500;color:#111827">Post-Job Follow-up</div>
+              <div style="font-size:11px;color:#9ca3af">Review request + re-book</div>
+            </td>
+            <td style="padding:14px 10px"><span style="background:#dcfce7;color:#15803d;font-size:11px;padding:2px 8px;border-radius:99px">Job completed</span></td>
+            <td style="padding:14px 10px;text-align:center;color:#374151">4</td>
+            <td style="padding:14px 10px;text-align:center;color:#374151">7</td>
+            <td style="padding:14px 10px;text-align:center">
+              <div style="width:36px;height:20px;background:#2563eb;border-radius:99px;margin:0 auto;position:relative">
+                <div style="width:16px;height:16px;background:white;border-radius:50%;position:absolute;right:2px;top:2px"></div>
+              </div>
+            </td>
+            <td style="padding:14px 20px;text-align:right">
+              <span style="color:#6b7280;font-size:12px;cursor:pointer">Edit ›</span>
+            </td>
+          </tr>
+          <tr style="border-top:1px solid #f3f4f6">
+            <td style="padding:14px 20px">
+              <div style="font-weight:500;color:#111827">Re-engagement</div>
+              <div style="font-size:11px;color:#9ca3af">Win back cold leads</div>
+            </td>
+            <td style="padding:14px 10px"><span style="background:#f3f4f6;color:#6b7280;font-size:11px;padding:2px 8px;border-radius:99px">Manual</span></td>
+            <td style="padding:14px 10px;text-align:center;color:#374151">2</td>
+            <td style="padding:14px 10px;text-align:center;color:#374151">0</td>
+            <td style="padding:14px 10px;text-align:center">
+              <div style="width:36px;height:20px;background:#d1d5db;border-radius:99px;margin:0 auto;position:relative">
+                <div style="width:16px;height:16px;background:white;border-radius:50%;position:absolute;left:2px;top:2px"></div>
+              </div>
+            </td>
+            <td style="padding:14px 20px;text-align:right">
+              <span style="color:#6b7280;font-size:12px;cursor:pointer">Edit ›</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Page 2 — /dashboard/sequences/[id] (editor, full page)</h3>
+  <div class="mockup">
+    <div class="mockup-header">New Client Welcome — Sequence Editor</div>
+    <div class="mockup-body" style="padding:0;display:flex;min-height:400px">
+
+      <!-- Left: step list -->
+      <div style="width:240px;border-right:1px solid #e5e7eb;padding:16px;flex-shrink:0">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:12px">Steps</div>
+
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer">
+          <div style="font-size:11px;color:#6b7280;margin-bottom:2px">Step 1 · Day 0</div>
+          <div style="font-size:13px;font-weight:500;color:#1d4ed8">Welcome to [Business]!</div>
+        </div>
+
+        <div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer">
+          <div style="font-size:11px;color:#6b7280;margin-bottom:2px">Step 2 · Day 3</div>
+          <div style="font-size:13px;font-weight:500;color:#374151">How's everything going?</div>
+        </div>
+
+        <div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:12px;cursor:pointer">
+          <div style="font-size:11px;color:#6b7280;margin-bottom:2px">Step 3 · Day 7</div>
+          <div style="font-size:13px;font-weight:500;color:#374151">Your exclusive offer</div>
+        </div>
+
+        <div style="border:1px dashed #d1d5db;border-radius:8px;padding:8px 12px;text-align:center;font-size:12px;color:#9ca3af;cursor:pointer">+ Add step</div>
+      </div>
+
+      <!-- Right: step editor -->
+      <div style="flex:1;padding:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <div style="font-size:14px;font-weight:600;color:#111827">Step 1 — Day 0 (sends immediately)</div>
+          <div class="mock-button" style="background:#f3f4f6;color:#374151;font-size:11px">✨ Regenerate with AI</div>
+        </div>
+
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:#6b7280;margin-bottom:4px">SUBJECT LINE</div>
+          <div class="mock-input">Welcome to [Business Name], [First Name]!</div>
+        </div>
+
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;color:#6b7280;margin-bottom:4px">PREVIEW TEXT</div>
+          <div class="mock-input">We're so glad you're here. Here's what to expect...</div>
+        </div>
+
+        <div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:4px">EMAIL BODY</div>
+          <div style="border:1px solid #e5e7eb;border-radius:6px;padding:12px;font-size:13px;color:#374151;min-height:140px;line-height:1.6">
+            Hi [First Name],<br><br>
+            Thank you for choosing [Business Name]. We're excited to work with you...<br><br>
+            Here's what happens next: ...<br><br>
+            — [Your Name]
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="font-size:13px;color:#6b7280;text-align:center;margin-top:8px">Does this layout feel right for the sequences manager? Any changes to either page?</p>

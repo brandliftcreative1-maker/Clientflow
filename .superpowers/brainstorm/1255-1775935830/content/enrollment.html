@@ -1,0 +1,100 @@
+<h2>Section 2: Enrollment</h2>
+<p class="subtitle">Two ways contacts enter a sequence — manual and automatic</p>
+
+<div class="section">
+  <h3>Manual enrollment — from Contacts page</h3>
+  <p style="font-size:13px;color:#6b7280;margin-bottom:12px">Select one or more contacts → "Enroll in sequence" button appears in the bulk action bar</p>
+  <div class="mockup">
+    <div class="mockup-header">Contacts</div>
+    <div class="mockup-body" style="padding:0">
+
+      <!-- Bulk action bar (appears when contacts selected) -->
+      <div style="background:#1e40af;color:white;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;font-size:13px">
+        <span>3 contacts selected</span>
+        <div style="display:flex;gap:8px">
+          <div style="background:rgba(255,255,255,0.15);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px">Change segment</div>
+          <div style="background:white;color:#1e40af;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:500">▶ Enroll in sequence</div>
+          <div style="background:rgba(255,255,255,0.15);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px">🗑 Delete</div>
+        </div>
+      </div>
+
+      <!-- Enroll dialog -->
+      <div style="margin:16px 20px;border:1px solid #e5e7eb;border-radius:10px;padding:16px;background:#f9fafb">
+        <div style="font-weight:600;color:#111827;margin-bottom:4px;font-size:14px">Enroll 3 contacts in a sequence</div>
+        <div style="font-size:12px;color:#6b7280;margin-bottom:12px">They'll receive the first email immediately (or on schedule)</div>
+        <div style="display:flex;gap:8px">
+          <select style="flex:1;border:1px solid #d1d5db;border-radius:6px;padding:8px 12px;font-size:13px;color:#374151">
+            <option>New Client Welcome (3 steps)</option>
+            <option>Post-Job Follow-up (4 steps)</option>
+            <option>Happy Birthday (2 steps)</option>
+            <option>Re-engagement (2 steps)</option>
+          </select>
+          <div class="mock-button" style="white-space:nowrap">Enroll now</div>
+        </div>
+      </div>
+
+      <!-- Table rows (simplified) -->
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr style="border-top:1px solid #f3f4f6;background:#eff6ff">
+          <td style="padding:12px 20px;width:36px"><div style="width:16px;height:16px;background:#2563eb;border-radius:3px;display:inline-block"></div></td>
+          <td style="padding:12px 10px"><strong>Jane Smith</strong><br><span style="color:#6b7280;font-size:11px">jane@example.com</span></td>
+          <td style="padding:12px 10px"><span style="background:#dcfce7;color:#15803d;font-size:11px;padding:2px 8px;border-radius:99px">new customer</span></td>
+        </tr>
+        <tr style="border-top:1px solid #f3f4f6;background:#eff6ff">
+          <td style="padding:12px 20px"><div style="width:16px;height:16px;background:#2563eb;border-radius:3px;display:inline-block"></div></td>
+          <td style="padding:12px 10px"><strong>Mark Johnson</strong><br><span style="color:#6b7280;font-size:11px">mark@example.com</span></td>
+          <td style="padding:12px 10px"><span style="background:#dbeafe;color:#1d4ed8;font-size:11px;padding:2px 8px;border-radius:99px">lead</span></td>
+        </tr>
+        <tr style="border-top:1px solid #f3f4f6;background:#eff6ff">
+          <td style="padding:12px 20px"><div style="width:16px;height:16px;background:#2563eb;border-radius:3px;display:inline-block"></div></td>
+          <td style="padding:12px 10px"><strong>Sara Lee</strong><br><span style="color:#6b7280;font-size:11px">sara@example.com</span></td>
+          <td style="padding:12px 10px"><span style="background:#dbeafe;color:#1d4ed8;font-size:11px;padding:2px 8px;border-radius:99px">lead</span></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Manual enrollment — fire custom trigger from contact profile</h3>
+  <p style="font-size:13px;color:#6b7280;margin-bottom:12px">On a single contact's row, a "Fire trigger" action fires any active sequence matching that trigger name</p>
+  <div class="mockup">
+    <div class="mockup-header">Contact — Jane Smith</div>
+    <div class="mockup-body" style="padding:16px">
+      <div style="font-size:13px;color:#374151;margin-bottom:12px">jane@example.com · new customer · added 3 days ago</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:8px">Sequences</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:6px 12px;font-size:12px;color:#1d4ed8">▶ New Client Welcome <span style="color:#93c5fd">· Step 2 of 3</span></div>
+        <div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;padding:6px 12px;font-size:12px;color:#374151;cursor:pointer">⚡ Fire trigger…</div>
+      </div>
+      <div style="margin-top:10px;border:1px solid #e5e7eb;border-radius:8px;padding:12px;background:#fafafa;font-size:12px;display:inline-block">
+        <div style="color:#6b7280;margin-bottom:6px">Fire a trigger for Jane:</div>
+        <div style="display:flex;gap:8px">
+          <select style="border:1px solid #d1d5db;border-radius:6px;padding:5px 10px;font-size:12px;color:#374151">
+            <option>After consultation call</option>
+            <option>Quote approved</option>
+            <option>Job completed</option>
+          </select>
+          <div class="mock-button" style="font-size:11px;padding:5px 10px">Fire</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Auto-enrollment — trigger fires automatically</h3>
+  <p style="font-size:13px;color:#6b7280;margin-bottom:8px">No user action needed — happens in the background when:</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
+    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px">
+      <div style="font-weight:500;color:#111827;margin-bottom:4px">🆕 New contact added</div>
+      <div style="color:#6b7280;font-size:12px">Any active sequence with trigger "New contact" auto-enrolls them immediately</div>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px">
+      <div style="font-weight:500;color:#111827;margin-bottom:4px">🎂 Birthday</div>
+      <div style="color:#6b7280;font-size:12px">Cron job checks daily — enrolls contacts whose birthday is today</div>
+    </div>
+  </div>
+</div>
+
+<p style="font-size:13px;color:#6b7280;text-align:center;margin-top:8px">Does the enrollment flow make sense? Ready for Section 3 (the cron sending engine)?</p>
