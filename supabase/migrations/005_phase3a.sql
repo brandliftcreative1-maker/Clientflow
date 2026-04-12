@@ -1,24 +1,7 @@
 -- Phase 3a: Social Content Engine
 
--- Storage bucket for generated images
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('content-images', 'content-images', true)
-ON CONFLICT DO NOTHING;
-
--- Storage policy: accounts can manage their own images
-CREATE POLICY "Accounts can upload their own images"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (bucket_id = 'content-images');
-
-CREATE POLICY "Anyone can view content images"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'content-images');
-
-CREATE POLICY "Accounts can delete their own images"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (bucket_id = 'content-images');
+-- Note: images are stored as fal.ai CDN URLs directly in image_url.
+-- No Supabase Storage bucket is required.
 
 -- Google OAuth columns on accounts
 ALTER TABLE accounts

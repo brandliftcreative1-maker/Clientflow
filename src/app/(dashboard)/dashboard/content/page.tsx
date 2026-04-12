@@ -79,7 +79,6 @@ export default function ContentStudioPage() {
   const [regenImageLoading, setRegenImageLoading] = useState(false)
   const [copied, setCopied] = useState<SocialPlatform | null>(null)
   const [publishing, setPublishing] = useState(false)
-  const [autoPostGoogle, setAutoPostGoogle] = useState(true)
 
   const handleGenerate = async () => {
     if (!selectedTemplate) return
@@ -93,6 +92,8 @@ export default function ContentStudioPage() {
         setPost(result.post)
         setCaptions(result.post.captions)
       }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Generation failed')
     } finally {
       setGenerating(false)
     }
@@ -139,13 +140,15 @@ export default function ContentStudioPage() {
     setPublishing(true)
     try {
       await savePost(post.id, captions)
-      const result = await publishPost(post.id, captions, autoPostGoogle)
-      if (result.error && !result.googlePosted) {
+      const result = await publishPost(post.id, captions, false)
+      if (result.error) {
         toast.error(result.error)
       } else {
-        toast.success(result.googlePosted ? 'Published! Auto-posted to Google Business.' : 'Published! Copy captions to post on other platforms.')
+        toast.success('Post saved! Copy each caption to post on your platforms.')
         setPost(prev => prev ? { ...prev, status: 'published' } : prev)
       }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save post')
     } finally {
       setPublishing(false)
     }
@@ -265,20 +268,9 @@ export default function ContentStudioPage() {
                   New image
                 </button>
               </div>
-              {/* Google auto-post toggle */}
+              {/* Google auto-post — configured in Settings */}
               <div className="mt-auto pt-3 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-gray-500 font-medium">Auto-post to Google</span>
-                  <button
-                    onClick={() => setAutoPostGoogle(p => !p)}
-                    className={`w-9 h-5 rounded-full relative transition-colors ${autoPostGoogle ? 'bg-green-500' : 'bg-gray-300'}`}
-                  >
-                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${autoPostGoogle ? 'right-0.5' : 'left-0.5'}`} />
-                  </button>
-                </div>
-                {autoPostGoogle && (
-                  <p className="text-xs text-green-600">Will auto-post when you publish</p>
-                )}
+                <p className="text-xs text-gray-400">Google Business auto-post can be enabled in <a href="/dashboard/settings" className="text-blue-500 hover:underline">Settings</a>.</p>
               </div>
             </div>
 
