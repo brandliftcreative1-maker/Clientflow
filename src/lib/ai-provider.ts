@@ -280,23 +280,29 @@ export async function generateSocialImage(params: {
 
   const imagePrompt = `Social media square post (1:1). ${templatePrompts[params.templateType]} No faces or people. Professional photography style. Clean white or light background. Business colors: ${params.primaryColor}.`
 
-  const { fal } = await import('@fal-ai/client')
-  fal.config({ credentials: apiKey })
-
-  // Use fal.run (direct HTTP call) instead of fal.subscribe (polling queue)
-  // fal.subscribe hangs in Vercel serverless environments due to polling timeouts
-  const result = await fal.run('fal-ai/flux/schnell', {
-    input: {
+  // Direct REST call — more reliable than the SDK in Vercel serverless
+  const res = await fetch('https://fal.run/fal-ai/flux/schnell', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
       prompt: imagePrompt,
       image_size: 'square_hd',
       num_inference_steps: 4,
       num_images: 1,
-    },
+    }),
   })
 
-  const images = (result as unknown as { images: { url: string }[] }).images
-  if (!images || images.length === 0) throw new Error('fal.ai returned no images')
-  return images[0].url
+  if (!res.ok) {
+    const errText = await res.text().catch(() => res.statusText)
+    throw new Error(`fal.ai ${res.status}: ${errText}`)
+  }
+
+  const data = await res.json() as { images?: { url: string }[] }
+  if (!data.images || data.images.length === 0) throw new Error('fal.ai returned no images')
+  return data.images[0].url
 }
 
 // ---------------------------------------------------------------------------
