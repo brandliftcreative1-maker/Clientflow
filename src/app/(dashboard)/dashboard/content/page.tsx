@@ -91,6 +91,9 @@ export default function ContentStudioPage() {
       if (result.post) {
         setPost(result.post)
         setCaptions(result.post.captions)
+        if (result.imageError) {
+          toast.error(`Image generation failed — check your FAL_API_KEY. You can retry with "New image".\n${result.imageError}`, { duration: 6000 })
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Generation failed')
@@ -247,8 +250,10 @@ export default function ContentStudioPage() {
               {post.image_url ? (
                 <img src={post.image_url} alt="Generated post" className="aspect-square w-full object-cover rounded-xl mb-3" />
               ) : (
-                <div className="aspect-square w-full bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl mb-3 flex items-center justify-center">
-                  <Loader2 className="animate-spin text-white" size={24} />
+                <div className="aspect-square w-full bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl mb-3 flex flex-col items-center justify-center gap-2 text-center px-3">
+                  <span className="text-2xl">🖼️</span>
+                  <span className="text-xs text-gray-500">No image generated</span>
+                  <span className="text-xs text-gray-400">Click "New image" below</span>
                 </div>
               )}
               <div className="flex gap-2 mb-3">

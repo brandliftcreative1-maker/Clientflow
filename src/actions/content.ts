@@ -57,7 +57,7 @@ export async function generatePost(
   templateType: SocialTemplateType,
   promptData: Record<string, string>,
   scheduledDate?: string
-): Promise<{ post: ContentPost | null; error?: string }> {
+): Promise<{ post: ContentPost | null; error?: string; imageError?: string }> {
   const { user, account, supabase } = await getAccountAndUser()
   if (!user || !account) return { post: null, error: 'Not authenticated' }
 
@@ -75,6 +75,7 @@ export async function generatePost(
 
     // Generate image (optional — if fal.ai is unavailable, continue without it)
     let falImageUrl: string | null = null
+    let imageError: string | undefined
     try {
       falImageUrl = await generateSocialImage({
         templateType,
@@ -83,7 +84,8 @@ export async function generatePost(
         primaryColor: account.primary_color,
       })
     } catch (imgErr) {
-      console.error('Image generation failed (non-fatal):', imgErr)
+      imageError = imgErr instanceof Error ? imgErr.message : 'Image generation failed'
+      console.error('Image generation failed (non-fatal):', imageError)
       // Continue without image — user can regenerate later
     }
 
@@ -124,6 +126,7 @@ export async function generatePost(
         google_posted_at: null,
         created_at: new Date().toISOString(),
       },
+      imageError,
     }
   } catch (err) {
     return { post: null, error: err instanceof Error ? err.message : 'Generation failed' }
