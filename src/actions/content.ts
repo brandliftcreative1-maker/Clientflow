@@ -20,7 +20,7 @@ async function getAccountAndUser() {
     .from('accounts')
     .select('id, business_name, industry, brand_voice, primary_color, google_refresh_token, google_location_name')
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
   return { user, account, supabase }
 }
 
@@ -62,22 +62,30 @@ export async function generatePost(
   if (!user || !account) return { post: null, error: 'Not authenticated' }
 
   try {
-    // Generate captions and image in parallel
-    const [captions, falImageUrl] = await Promise.all([
-      generateSocialCaptions({
-        templateType,
-        promptData,
-        businessName: account.business_name,
-        industry: account.industry,
-        brandVoice: account.brand_voice,
-      }),
-      generateSocialImage({
+    // Generate captions (required)
+    const captions = await generateSocialCaptions({
+      templateType,
+      promptData,
+      businessName: account.business_name,
+      industry: account.industry,
+      brandVoice: account.brand_voice,
+    }).catch((err: unknown) => {
+      throw new Error(`Caption generation failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+
+    // Generate image (optional — if fal.ai is unavailable, continue without it)
+    let falImageUrl: string | null = null
+    try {
+      falImageUrl = await generateSocialImage({
         templateType,
         promptData,
         businessName: account.business_name,
         primaryColor: account.primary_color,
-      }),
-    ])
+      })
+    } catch (imgErr) {
+      console.error('Image generation failed (non-fatal):', imgErr)
+      // Continue without image — user can regenerate later
+    }
 
     // Store fal.ai URL directly — no Supabase Storage required
     const today = new Date().toISOString().split('T')[0]
@@ -296,9 +304,7 @@ export async function deletePost(postId: string): Promise<{ error?: string }> {
   const { user, account, supabase } = await getAccountAndUser()
   if (!user || !account) return { error: 'Not authenticated' }
 
-  // Remove from storage
-  const storagePath = `${account.id}/${postId}.png`
-  await supabase.storage.from('content-images').remove([storagePath])
+  // Images are stored as fal.ai CDN URLs — no Supabase Storage to clean up
 
   const { error } = await supabase
     .from('content_posts')
