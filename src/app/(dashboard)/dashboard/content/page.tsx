@@ -28,11 +28,12 @@ const TEMPLATES = [
   { type: 'behind_scenes', emoji: '📸', label: 'Behind the Scenes', desc: 'Show your team, workspace, or process' },
   { type: 'seasonal', emoji: '🗓️', label: 'Seasonal / Holiday', desc: 'Timely posts around events and seasons' },
   { type: 'about_business', emoji: '🏢', label: 'About the Business', desc: 'Your story, values, what makes you different' },
+  { type: 'custom', emoji: '✏️', label: 'Custom Post', desc: 'Write your own post idea from scratch' },
 ] as const
 
 type TemplateType = typeof TEMPLATES[number]['type']
 
-const TONES = ['Friendly', 'Professional', 'Exciting'] as const
+const PRESET_TONES = ['Friendly', 'Professional', 'Exciting', 'Inspirational', 'Humorous', 'Urgent'] as const
 
 const PLATFORM_CONFIG = {
   instagram: { label: 'Instagram', abbr: 'IG', bg: 'bg-pink-50', border: 'border-pink-200', badgeBg: 'bg-[#e1306c]', regenBorder: 'border-[#e1306c]', regenText: 'text-[#e1306c]' },
@@ -40,26 +41,41 @@ const PLATFORM_CONFIG = {
   google_business: { label: 'Google Business', abbr: 'G', bg: 'bg-orange-50', border: 'border-orange-200', badgeBg: 'bg-[#f97316]', regenBorder: 'border-[#f97316]', regenText: 'text-[#f97316]' },
 } as const
 
-const FORM_FIELDS: Record<TemplateType, { key: string; label: string; placeholder: string }[]> = {
+const FORM_FIELDS: Record<TemplateType, { key: string; label: string; placeholder: string; textarea?: boolean }[]> = {
   promotion: [
     { key: 'offer', label: "What's the offer?", placeholder: '20% off spring cleaning' },
     { key: 'expiry', label: 'Valid until', placeholder: 'April 30th' },
+    { key: 'audience', label: 'Who is this for? (optional)', placeholder: 'Homeowners, new customers, local residents...' },
+    { key: 'cta', label: 'Call to action (optional)', placeholder: 'Call us, book online, visit our website...' },
   ],
   tip: [
     { key: 'tip', label: 'What tip or advice?', placeholder: 'How to keep your home clean between visits' },
+    { key: 'audience', label: 'Who is this for? (optional)', placeholder: 'Homeowners, busy families, business owners...' },
+    { key: 'extra', label: 'Anything else to include? (optional)', placeholder: 'Stats, common mistakes, step-by-step...' },
   ],
   customer_spotlight: [
     { key: 'quote', label: "Customer quote or review", placeholder: '"Best service ever!" — Sarah M.' },
+    { key: 'result', label: 'What result did they get? (optional)', placeholder: 'Saved 3 hours a week, saw 30% more leads...' },
+    { key: 'cta', label: 'Call to action (optional)', placeholder: 'Try it yourself, book a free consult...' },
   ],
   behind_scenes: [
     { key: 'description', label: "What are you showing?", placeholder: 'Our team preparing for a big job' },
+    { key: 'message', label: 'Key message or takeaway (optional)', placeholder: 'We take pride in every detail...' },
   ],
   seasonal: [
     { key: 'season', label: 'Season or holiday', placeholder: 'Spring, Easter, Back to School...' },
     { key: 'message', label: 'Message', placeholder: 'Wishing all our customers a happy spring!' },
+    { key: 'offer', label: 'Special offer tied to the season? (optional)', placeholder: 'Spring special — 15% off this week' },
   ],
   about_business: [
     { key: 'highlight', label: 'What to highlight?', placeholder: 'Family-owned for 10 years, serving the local community' },
+    { key: 'differentiator', label: 'What makes you different? (optional)', placeholder: 'Same-day service, certified team, satisfaction guarantee...' },
+    { key: 'cta', label: 'Call to action (optional)', placeholder: 'Call us today, visit our website...' },
+  ],
+  custom: [
+    { key: 'topic', label: 'What do you want to post about?', placeholder: 'Describe your post idea in your own words...', textarea: true },
+    { key: 'audience', label: 'Who is this for? (optional)', placeholder: 'Your target audience for this post' },
+    { key: 'cta', label: 'Call to action (optional)', placeholder: 'What should people do after reading?' },
   ],
 }
 
@@ -71,6 +87,7 @@ export default function ContentStudioPage() {
 
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null)
   const [tone, setTone] = useState<string>('Friendly')
+  const [customTone, setCustomTone] = useState('')
   const [formData, setFormData] = useState<Record<string, string>>({})
   const [generating, setGenerating] = useState(false)
   const [post, setPost] = useState<ContentPost | null>(null)
@@ -87,7 +104,8 @@ export default function ContentStudioPage() {
     setGenerating(true)
     setPost(null)
     try {
-      const promptData = { ...formData, tone }
+      const effectiveTone = tone === 'Custom' ? (customTone.trim() || 'Friendly') : tone
+      const promptData = { ...formData, tone: effectiveTone }
       const result = await generatePost(selectedTemplate, promptData, dateParam ?? undefined)
       if (result.error) { toast.error(result.error); return }
       if (result.post) {
@@ -206,22 +224,32 @@ export default function ContentStudioPage() {
           </div>
           <div className="grid grid-cols-2 gap-4 mb-4">
             {FORM_FIELDS[selectedTemplate].map(field => (
-              <div key={field.key}>
+              <div key={field.key} className={field.textarea ? 'col-span-2' : ''}>
                 <Label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">{field.label}</Label>
-                <Input
-                  placeholder={field.placeholder}
-                  value={formData[field.key] ?? ''}
-                  onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-                />
+                {field.textarea ? (
+                  <Textarea
+                    placeholder={field.placeholder}
+                    value={formData[field.key] ?? ''}
+                    onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                    rows={3}
+                    className="resize-none"
+                  />
+                ) : (
+                  <Input
+                    placeholder={field.placeholder}
+                    value={formData[field.key] ?? ''}
+                    onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  />
+                )}
               </div>
             ))}
           </div>
           <div className="mb-4">
             <Label className="text-xs text-gray-500 uppercase tracking-wide mb-2 block">
-              Tone <span className="font-normal normal-case">(auto-set from your brand voice)</span>
+              Tone
             </Label>
-            <div className="flex gap-2">
-              {TONES.map(t => (
+            <div className="flex flex-wrap gap-2">
+              {PRESET_TONES.map(t => (
                 <button
                   key={t}
                   onClick={() => setTone(t)}
@@ -232,7 +260,23 @@ export default function ContentStudioPage() {
                   {t}
                 </button>
               ))}
+              <button
+                onClick={() => setTone('Custom')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                  tone === 'Custom' ? 'border-blue-500 text-blue-600 bg-white' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                }`}
+              >
+                + Custom
+              </button>
             </div>
+            {tone === 'Custom' && (
+              <Input
+                className="mt-2"
+                placeholder="Describe your tone (e.g. conversational but authoritative, warm and empathetic...)"
+                value={customTone}
+                onChange={e => setCustomTone(e.target.value)}
+              />
+            )}
           </div>
           <Button onClick={handleGenerate} disabled={generating} className="flex items-center gap-2">
             {generating ? <Loader2 size={16} className="animate-spin" /> : '✨'}

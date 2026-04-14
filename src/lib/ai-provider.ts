@@ -176,6 +176,7 @@ export type SocialTemplateType =
   | 'behind_scenes'
   | 'seasonal'
   | 'about_business'
+  | 'custom'
 
 // ---------------------------------------------------------------------------
 // generateSocialCaptions — all three platforms in one call
@@ -188,23 +189,26 @@ export async function generateSocialCaptions(params: {
   industry: string
   brandVoice: string
 }): Promise<SocialCaptions> {
-  const promptDataStr = Object.entries(params.promptData)
-    .map(([k, v]) => `${k}: ${v}`)
-    .join('\n')
+  // Separate tone from the rest of the fields for cleaner prompting
+  const { tone, audience, cta, ...contentFields } = params.promptData
+  const contentStr = Object.entries(contentFields).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n')
 
   const prompt = `You are a social media copywriter for small service businesses.
 
 Business: ${params.businessName}
 Industry: ${params.industry}
 Brand voice: ${params.brandVoice}
+Tone for this post: ${tone ?? 'Friendly'}
 Post type: ${params.templateType.replace(/_/g, ' ')}
-Details:
-${promptDataStr}
+${contentStr ? `Post details:\n${contentStr}` : ''}
+${audience ? `Target audience: ${audience}` : ''}
+${cta ? `Desired call to action: ${cta}` : ''}
 
 Write three separate social media captions for this post — one for each platform. Each caption should be tailored to the norms of that platform:
 - Instagram: conversational, emoji-friendly, 5-10 relevant hashtags at the end, 150-280 chars of body text
 - Facebook: slightly longer and more conversational, 1-2 emoji max, no hashtags, 150-300 chars
 - Google Business: short, factual, professional, no emoji, no hashtags, 100-150 chars
+${cta ? `All three captions must include the call to action: ${cta}` : ''}
 
 Respond with valid JSON only in this exact format:
 {
@@ -273,6 +277,7 @@ export async function generateSocialImage(params: {
     behind_scenes: `abstract office workspace flat illustration, geometric desk shapes, soft neutral colors, professional minimalist digital art`,
     seasonal: `abstract ${params.promptData.season ?? 'seasonal'} concept, seasonal color palette, geometric decorative shapes, festive modern digital art`,
     about_business: `abstract professional trust concept, geometric handshake shapes, clean blue and white gradient, modern minimalist digital art`,
+    custom: `abstract professional social media graphic, clean geometric shapes, modern gradient background, minimalist digital art`,
   }
 
   const imagePrompt = `${templatePrompts[params.templateType]}, letterless, textless, wordless, signless, no typography, no letters, no numbers, no words, no text of any kind, pure abstract shapes only`
