@@ -266,43 +266,20 @@ export async function generateSocialImage(params: {
   businessName: string
   primaryColor: string
 }): Promise<string> {
-  const apiKey = process.env.FAL_API_KEY
-  if (!apiKey) throw new Error('FAL_API_KEY is not set')
-
   const templatePrompts: Record<SocialTemplateType, string> = {
-    promotion: `promotional offer graphic for "${params.businessName}". Bold text overlay showing the offer: ${params.promptData.offer ?? ''}. Clean, modern design.`,
-    tip: `professional tip or advice graphic for "${params.businessName}". Clean layout with tip text: ${params.promptData.tip ?? ''}. Minimal, modern style.`,
-    customer_spotlight: `customer testimonial or review graphic for "${params.businessName}". Warm, trustworthy feel. Quote-style layout.`,
-    behind_scenes: `behind the scenes photo-style graphic for "${params.businessName}". Authentic, candid feel showing the business in action.`,
-    seasonal: `seasonal themed graphic for "${params.businessName}". ${params.promptData.season ?? 'seasonal'} theme. Festive and professional.`,
-    about_business: `brand story graphic for "${params.businessName}". Professional, welcoming. Shows the business values and identity.`,
+    promotion: `promotional offer social media graphic for ${params.businessName}, offer: ${params.promptData.offer ?? ''}, clean modern design, no text overlay`,
+    tip: `professional advice social media graphic for ${params.businessName}, topic: ${params.promptData.tip ?? ''}, minimal modern style`,
+    customer_spotlight: `customer testimonial social media graphic for ${params.businessName}, warm trustworthy feel, quote style layout`,
+    behind_scenes: `behind the scenes business photo for ${params.businessName}, authentic candid feel, business in action`,
+    seasonal: `${params.promptData.season ?? 'seasonal'} themed social media graphic for ${params.businessName}, festive professional`,
+    about_business: `brand story social media graphic for ${params.businessName}, professional welcoming, business values`,
   }
 
-  const imagePrompt = `Social media square post (1:1). ${templatePrompts[params.templateType]} No faces or people. Professional photography style. Clean white or light background. Business colors: ${params.primaryColor}.`
+  const imagePrompt = `${templatePrompts[params.templateType]}, square format, professional photography style, clean background, accent color ${params.primaryColor}, no faces, no people, no text`
 
-  // Direct REST call — more reliable than the SDK in Vercel serverless
-  const res = await fetch('https://fal.run/fal-ai/flux/schnell', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Key ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      prompt: imagePrompt,
-      image_size: 'square_hd',
-      num_inference_steps: 4,
-      num_images: 1,
-    }),
-  })
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => res.statusText)
-    throw new Error(`fal.ai ${res.status}: ${errText}`)
-  }
-
-  const data = await res.json() as { images?: { url: string }[] }
-  if (!data.images || data.images.length === 0) throw new Error('fal.ai returned no images')
-  return data.images[0].url
+  // Pollinations.ai — free, no API key required, returns image directly
+  const seed = Math.floor(Math.random() * 99999)
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1024&height=1024&model=flux&nologo=true&seed=${seed}`
 }
 
 // ---------------------------------------------------------------------------
