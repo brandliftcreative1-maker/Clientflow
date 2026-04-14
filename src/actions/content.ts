@@ -434,7 +434,7 @@ export async function saveCadenceSettings(
 
 export async function getGoogleAuthUrl(): Promise<string> {
   const clientId = process.env.GOOGLE_CLIENT_ID
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const redirectUri = `${appUrl}/api/auth/google/callback`
 
   const params = new URLSearchParams({
