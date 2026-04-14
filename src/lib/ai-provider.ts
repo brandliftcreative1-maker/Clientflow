@@ -277,9 +277,9 @@ export async function generateSocialImage(params: {
 
   const imagePrompt = `${templatePrompts[params.templateType]}, square 1:1, no text, no words, no letters, no people, no faces, digital illustration`
 
-  // Pollinations.ai — free, no API key required, returns image directly
+  // Pollinations.ai — free, no API key required
   const seed = Math.floor(Math.random() * 99999)
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1024&height=1024&model=flux&nologo=true&seed=${seed}`
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=1024&height=1024&nologo=true&seed=${seed}`
 }
 
 // ---------------------------------------------------------------------------

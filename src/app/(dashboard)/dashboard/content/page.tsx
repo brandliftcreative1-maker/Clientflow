@@ -77,6 +77,8 @@ export default function ContentStudioPage() {
   const [captions, setCaptions] = useState<Record<SocialPlatform, string>>({ instagram: '', facebook: '', google_business: '' })
   const [regenLoading, setRegenLoading] = useState<SocialPlatform | null>(null)
   const [regenImageLoading, setRegenImageLoading] = useState(false)
+  const [imageLoading, setImageLoading] = useState(false)
+  const [imageError, setImageError] = useState(false)
   const [copied, setCopied] = useState<SocialPlatform | null>(null)
   const [publishing, setPublishing] = useState(false)
 
@@ -91,8 +93,10 @@ export default function ContentStudioPage() {
       if (result.post) {
         setPost(result.post)
         setCaptions(result.post.captions)
+        setImageLoading(!!result.post.image_url)
+        setImageError(false)
         if (result.imageError) {
-          toast.error(`Image generation failed — check your FAL_API_KEY. You can retry with "New image".\n${result.imageError}`, { duration: 6000 })
+          toast.error(`Image failed: ${result.imageError}`, { duration: 6000 })
         }
       }
     } catch (err) {
@@ -125,6 +129,8 @@ export default function ContentStudioPage() {
       if (result.error) { toast.error(result.error); return }
       if (result.imageUrl) {
         setPost(prev => prev ? { ...prev, image_url: result.imageUrl! } : prev)
+        setImageLoading(true)
+        setImageError(false)
         toast.success('New image generated')
       }
     } finally {
@@ -247,13 +253,27 @@ export default function ContentStudioPage() {
           <div className="flex min-h-[520px]">
             {/* Left: image */}
             <div className="w-64 flex-shrink-0 p-5 border-r border-gray-100 flex flex-col">
-              {post.image_url ? (
-                <img src={post.image_url} alt="Generated post" className="aspect-square w-full object-cover rounded-xl mb-3" />
+              {post.image_url && !imageError ? (
+                <div className="relative aspect-square w-full rounded-xl mb-3 overflow-hidden bg-gray-100">
+                  {imageLoading && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-100">
+                      <Loader2 className="animate-spin text-gray-400" size={24} />
+                      <span className="text-xs text-gray-400">Generating image…</span>
+                    </div>
+                  )}
+                  <img
+                    src={post.image_url}
+                    alt="Generated post"
+                    className={`aspect-square w-full object-cover rounded-xl transition-opacity duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => { setImageLoading(false); setImageError(true) }}
+                  />
+                </div>
               ) : (
                 <div className="aspect-square w-full bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl mb-3 flex flex-col items-center justify-center gap-2 text-center px-3">
                   <span className="text-2xl">🖼️</span>
-                  <span className="text-xs text-gray-500">No image generated</span>
-                  <span className="text-xs text-gray-400">Click "New image" below</span>
+                  <span className="text-xs text-gray-500">{imageError ? 'Image failed to load' : 'No image generated'}</span>
+                  <span className="text-xs text-gray-400">Click "New image" to retry</span>
                 </div>
               )}
               <div className="flex gap-2 mb-3">
