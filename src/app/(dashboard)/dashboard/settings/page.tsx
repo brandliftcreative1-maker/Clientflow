@@ -36,6 +36,7 @@ const FREQ_KEYS = {
 export default function SettingsPage() {
   const searchParams = useSearchParams()
   const googleParam = searchParams.get('google')
+  const googleReason = searchParams.get('reason')
 
   const [cadence, setCadence] = useState<CadenceSettings | null>(null)
   const [saving, setSaving] = useState(false)
@@ -46,10 +47,9 @@ export default function SettingsPage() {
   useEffect(() => {
     if (googleParam === 'connected') toast.success('Google Business connected!')
     if (googleParam === 'error') {
-      const reason = new URLSearchParams(window.location.search).get('reason') ?? ''
-      toast.error(`Google connection failed${reason ? ` (${reason})` : ''}. Try again.`, { duration: 8000 })
+      toast.error(`Google connection failed${googleReason ? `: ${googleReason}` : ''}. Try again.`, { duration: 10000 })
     }
-  }, [googleParam])
+  }, [googleParam, googleReason])
 
   useEffect(() => {
     getCadenceSettings().then(setCadence)
