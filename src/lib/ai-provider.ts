@@ -267,15 +267,15 @@ export async function generateSocialImage(params: {
   primaryColor: string
 }): Promise<string> {
   const templatePrompts: Record<SocialTemplateType, string> = {
-    promotion: `flat design sale promotion banner, bold geometric shapes, ribbon and star badge icons, vibrant colors, clean white background, modern minimalist style`,
-    tip: `flat design lightbulb idea concept, clean icons, soft gradient background, professional minimalist layout, pastel colors`,
-    customer_spotlight: `flat design five star review concept, gold stars, speech bubble, clean white background, warm colors, modern minimalist`,
-    behind_scenes: `flat design office workspace concept, desk with laptop and coffee, clean icons, soft colors, professional minimalist`,
-    seasonal: `${params.promptData.season ?? 'seasonal'} flat design illustration, seasonal icons and decorations, clean background, festive colors, modern style`,
-    about_business: `flat design professional business concept, handshake or building icon, clean white background, trustworthy colors, modern minimalist`,
+    promotion: `abstract sale promotion concept, bold geometric shapes, colorful ribbons and stars, vibrant gradient background, modern minimalist digital art`,
+    tip: `abstract lightbulb glowing concept, clean geometric shapes, soft blue and yellow gradient, professional minimalist digital art`,
+    customer_spotlight: `abstract five gold stars floating, warm orange and yellow gradient background, clean geometric layout, modern minimalist digital art`,
+    behind_scenes: `abstract office workspace flat illustration, geometric desk shapes, soft neutral colors, professional minimalist digital art`,
+    seasonal: `abstract ${params.promptData.season ?? 'seasonal'} concept, seasonal color palette, geometric decorative shapes, festive modern digital art`,
+    about_business: `abstract professional trust concept, geometric handshake shapes, clean blue and white gradient, modern minimalist digital art`,
   }
 
-  const imagePrompt = `${templatePrompts[params.templateType]}, square 1:1, no text, no words, no letters, no people, no faces, digital illustration`
+  const imagePrompt = `${templatePrompts[params.templateType]}, letterless, textless, wordless, signless, no typography, no letters, no numbers, no words, no text of any kind, pure abstract shapes only`
 
   // Pollinations.ai — free, no API key required
   const seed = Math.floor(Math.random() * 99999)
