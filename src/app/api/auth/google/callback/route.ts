@@ -2,17 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
+  const errorParam = searchParams.get('error')
 
   if (!code) {
-    return NextResponse.redirect(`${APP_URL}/dashboard/settings?google=error`)
+    console.error('Google OAuth callback: no code. error param:', errorParam)
+    return NextResponse.redirect(`${APP_URL}/dashboard/settings?google=error&reason=no_code`)
   }
 
   // Exchange code for tokens
+  const redirectUri = `${APP_URL}/api/auth/google/callback`
+  console.log('Google OAuth: exchanging code, redirect_uri:', redirectUri)
+
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -20,7 +25,7 @@ export async function GET(req: NextRequest) {
       client_id: process.env.GOOGLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
       code,
-      redirect_uri: `${APP_URL}/api/auth/google/callback`,
+      redirect_uri: redirectUri,
       grant_type: 'authorization_code',
     }),
   })
@@ -29,10 +34,12 @@ export async function GET(req: NextRequest) {
     access_token?: string
     refresh_token?: string
     error?: string
+    error_description?: string
   }
 
   if (!tokens.access_token || !tokens.refresh_token) {
-    return NextResponse.redirect(`${APP_URL}/dashboard/settings?google=error`)
+    console.error('Google OAuth token exchange failed:', tokens.error, tokens.error_description)
+    return NextResponse.redirect(`${APP_URL}/dashboard/settings?google=error&reason=${tokens.error ?? 'no_token'}`)
   }
 
   // Fetch the first Google Business location

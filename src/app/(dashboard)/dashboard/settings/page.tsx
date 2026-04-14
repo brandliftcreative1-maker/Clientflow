@@ -45,7 +45,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (googleParam === 'connected') toast.success('Google Business connected!')
-    if (googleParam === 'error') toast.error('Google Business connection failed. Please try again.')
+    if (googleParam === 'error') {
+      const reason = new URLSearchParams(window.location.search).get('reason') ?? ''
+      toast.error(`Google connection failed${reason ? ` (${reason})` : ''}. Try again.`, { duration: 8000 })
+    }
   }, [googleParam])
 
   useEffect(() => {
