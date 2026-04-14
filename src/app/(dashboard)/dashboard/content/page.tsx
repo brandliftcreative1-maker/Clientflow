@@ -12,7 +12,7 @@ import toast from 'react-hot-toast'
 import {
   generatePost,
   regenerateCaption,
-  regenerateImage,
+  regenerateImageDirect,
   savePost,
   publishPost,
   type ContentPost,
@@ -121,7 +121,7 @@ export default function ContentStudioPage() {
     if (!post) return
     setRegenImageLoading(true)
     try {
-      const result = await regenerateImage(post.id)
+      const result = await regenerateImageDirect(post.id, post.template_type, post.prompt_data)
       if (result.error) { toast.error(result.error); return }
       if (result.imageUrl) {
         setPost(prev => prev ? { ...prev, image_url: result.imageUrl! } : prev)

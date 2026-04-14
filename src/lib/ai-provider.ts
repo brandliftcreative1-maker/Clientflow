@@ -267,15 +267,15 @@ export async function generateSocialImage(params: {
   primaryColor: string
 }): Promise<string> {
   const templatePrompts: Record<SocialTemplateType, string> = {
-    promotion: `promotional offer social media graphic for ${params.businessName}, offer: ${params.promptData.offer ?? ''}, clean modern design, no text overlay`,
-    tip: `professional advice social media graphic for ${params.businessName}, topic: ${params.promptData.tip ?? ''}, minimal modern style`,
-    customer_spotlight: `customer testimonial social media graphic for ${params.businessName}, warm trustworthy feel, quote style layout`,
-    behind_scenes: `behind the scenes business photo for ${params.businessName}, authentic candid feel, business in action`,
-    seasonal: `${params.promptData.season ?? 'seasonal'} themed social media graphic for ${params.businessName}, festive professional`,
-    about_business: `brand story social media graphic for ${params.businessName}, professional welcoming, business values`,
+    promotion: `flat design sale promotion banner, bold geometric shapes, ribbon and star badge icons, vibrant colors, clean white background, modern minimalist style`,
+    tip: `flat design lightbulb idea concept, clean icons, soft gradient background, professional minimalist layout, pastel colors`,
+    customer_spotlight: `flat design five star review concept, gold stars, speech bubble, clean white background, warm colors, modern minimalist`,
+    behind_scenes: `flat design office workspace concept, desk with laptop and coffee, clean icons, soft colors, professional minimalist`,
+    seasonal: `${params.promptData.season ?? 'seasonal'} flat design illustration, seasonal icons and decorations, clean background, festive colors, modern style`,
+    about_business: `flat design professional business concept, handshake or building icon, clean white background, trustworthy colors, modern minimalist`,
   }
 
-  const imagePrompt = `${templatePrompts[params.templateType]}, square format, professional photography style, clean background, accent color ${params.primaryColor}, no faces, no people, no text`
+  const imagePrompt = `${templatePrompts[params.templateType]}, square 1:1, no text, no words, no letters, no people, no faces, digital illustration`
 
   // Pollinations.ai — free, no API key required, returns image directly
   const seed = Math.floor(Math.random() * 99999)

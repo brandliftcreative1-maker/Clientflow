@@ -175,6 +175,34 @@ export async function regenerateCaption(
 
 // ---- Regenerate Image ----
 
+// Direct version — works even if DB isn't set up (no DB lookup needed)
+export async function regenerateImageDirect(
+  postId: string,
+  templateType: string,
+  promptData: Record<string, string>
+): Promise<{ imageUrl: string | null; error?: string }> {
+  const { user, account, supabase } = await getAccountAndUser()
+  if (!user || !account) return { imageUrl: null, error: 'Not authenticated' }
+
+  try {
+    const imageUrl = await generateSocialImage({
+      templateType: templateType as SocialTemplateType,
+      promptData,
+      businessName: account.business_name,
+      primaryColor: account.primary_color,
+    })
+
+    // Update DB if post exists (non-blocking)
+    try {
+      await supabase.from('content_posts').update({ image_url: imageUrl }).eq('id', postId)
+    } catch { /* DB not set up yet */ }
+
+    return { imageUrl }
+  } catch (err) {
+    return { imageUrl: null, error: err instanceof Error ? err.message : 'Image regeneration failed' }
+  }
+}
+
 export async function regenerateImage(
   postId: string
 ): Promise<{ imageUrl: string | null; error?: string }> {
@@ -190,26 +218,7 @@ export async function regenerateImage(
 
   if (!post) return { imageUrl: null, error: 'Post not found' }
 
-  try {
-    const falImageUrl = await generateSocialImage({
-      templateType: post.template_type as SocialTemplateType,
-      promptData: post.prompt_data as Record<string, string>,
-      businessName: account.business_name,
-      primaryColor: account.primary_color,
-    })
-
-    // Update DB with new URL (non-blocking)
-    try {
-      await supabase
-        .from('content_posts')
-        .update({ image_url: falImageUrl })
-        .eq('id', postId)
-    } catch { /* DB not set up yet */ }
-
-    return { imageUrl: falImageUrl }
-  } catch (err) {
-    return { imageUrl: null, error: err instanceof Error ? err.message : 'Image regeneration failed' }
-  }
+  return regenerateImageDirect(postId, post.template_type, post.prompt_data as Record<string, string>)
 }
 
 // ---- Save Captions (after user edits) ----
