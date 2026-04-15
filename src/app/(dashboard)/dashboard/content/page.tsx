@@ -934,8 +934,6 @@ export default function ContentStudioPage() {
                         const platCaption = weeklyCaptions[wp.day]?.[pt.key] ?? wp.captions[pt.key]
                         const platCopied = weeklyCopied?.day === wp.day && weeklyCopied.platform === pt.key
                         const isRegenLoading = weeklyRegenLoading[platKey] ?? false
-                        const isScheduled = scheduled[platCardId]
-                        const isGPosted = googlePosted[platCardId]
                         const hasCustomImg = !!platformImages[platKey]
                         return (
                           <div key={pt.key} className="flex">
@@ -1024,67 +1022,76 @@ export default function ContentStudioPage() {
                                 <div className="text-right text-xs text-gray-400 mt-1">{platCaption.length} chars</div>
                               </div>
 
-                              {/* Per-platform footer: Schedule + (Google only) Publish */}
-                              <div className="px-4 pb-4 flex items-center gap-2 flex-wrap">
-                                {isScheduled ? (
-                                  <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
-                                    <Check size={11} /> Scheduled for {isScheduled}
-                                  </span>
-                                ) : scheduleOpen[platCardId] ? (
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <input type="date" min={todayISO}
-                                      value={scheduleDate[platCardId] ?? todayISO}
-                                      onChange={e => handleDateChange(platCardId, e.target.value)}
-                                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                    />
-                                    {(scheduleConflict[platCardId] ?? 0) > 0 && (
-                                      <span className="flex items-center gap-1 text-xs text-amber-600 font-medium px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
-                                        ⚠️ {scheduleConflict[platCardId]} post{scheduleConflict[platCardId] > 1 ? 's' : ''} already on this date
-                                      </span>
-                                    )}
-                                    <button
-                                      onClick={() => handleSchedule(platCardId, { templateType: wp.templateType, promptData: wp.promptData, captions: allCaptions, imageUrl: platImgUrl })}
-                                      disabled={scheduling[platCardId]}
-                                      className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                                    >
-                                      {scheduling[platCardId] ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Confirm
-                                    </button>
-                                    <button onClick={() => setScheduleOpen(prev => ({ ...prev, [platCardId]: false }))} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => setScheduleOpen(prev => ({ ...prev, [platCardId]: true }))}
-                                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
-                                  >
-                                    <Calendar size={11} /> Schedule
-                                  </button>
-                                )}
-
-                                {/* Google Business publish — only on G row */}
-                                {pt.key === 'google_business' && !scheduleOpen[platCardId] && (
-                                  isGPosted ? (
-                                    <span className="flex items-center gap-1.5 text-xs text-orange-600 font-medium px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-200">
-                                      <Check size={11} /> Posted to Google
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={() => googleConnected
-                                        ? handleGooglePublish(platCardId, { templateType: wp.templateType, promptData: wp.promptData, captions: allCaptions, imageUrl: platImgUrl })
-                                        : toast.error('Connect Google Business in Settings first.')}
-                                      disabled={googlePublishing[platCardId]}
-                                      className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${googleConnected ? 'border-orange-300 text-orange-600 hover:bg-orange-50' : 'border-gray-200 text-gray-400 cursor-not-allowed'}`}
-                                    >
-                                      {googlePublishing[platCardId] ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
-                                      {googleConnected ? 'Post to Google' : 'Google (not connected)'}
-                                    </button>
-                                  )
-                                )}
-                              </div>
                             </div>
                           </div>
                         )
                       })}
                     </div>
+
+                    {/* Card footer: single Schedule for the whole day + Google Business */}
+                    {(() => {
+                      const dayCardId = `week-${wp.day}`
+                      const gCardId = `week-${wp.day}-google_business`
+                      const dayScheduled = scheduled[dayCardId]
+                      const gPosted = googlePosted[gCardId]
+                      const gPublishing = googlePublishing[gCardId]
+                      return (
+                        <div className="px-5 py-4 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+                          {dayScheduled ? (
+                            <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
+                              <Check size={11} /> Scheduled for {dayScheduled}
+                            </span>
+                          ) : scheduleOpen[dayCardId] ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <input type="date" min={todayISO}
+                                value={scheduleDate[dayCardId] ?? todayISO}
+                                onChange={e => handleDateChange(dayCardId, e.target.value)}
+                                className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                              />
+                              {(scheduleConflict[dayCardId] ?? 0) > 0 && (
+                                <span className="flex items-center gap-1 text-xs text-amber-600 font-medium px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                                  ⚠️ {scheduleConflict[dayCardId]} post{scheduleConflict[dayCardId] > 1 ? 's' : ''} already on this date
+                                </span>
+                              )}
+                              <button
+                                onClick={() => handleSchedule(dayCardId, { templateType: wp.templateType, promptData: wp.promptData, captions: allCaptions, imageUrl: sharedImgUrl })}
+                                disabled={scheduling[dayCardId]}
+                                className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                              >
+                                {scheduling[dayCardId] ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Confirm
+                              </button>
+                              <button onClick={() => setScheduleOpen(prev => ({ ...prev, [dayCardId]: false }))} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setScheduleOpen(prev => ({ ...prev, [dayCardId]: true }))}
+                              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                            >
+                              <Calendar size={11} /> Schedule
+                            </button>
+                          )}
+
+                          {!scheduleOpen[dayCardId] && (
+                            gPosted ? (
+                              <span className="flex items-center gap-1.5 text-xs text-orange-600 font-medium px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-200">
+                                <Check size={11} /> Posted to Google
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => googleConnected
+                                  ? handleGooglePublish(gCardId, { templateType: wp.templateType, promptData: wp.promptData, captions: allCaptions, imageUrl: sharedImgUrl })
+                                  : toast.error('Connect Google Business in Settings first.')}
+                                disabled={gPublishing}
+                                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${googleConnected ? 'border-orange-300 text-orange-600 hover:bg-orange-50' : 'border-gray-200 text-gray-400 cursor-not-allowed'}`}
+                              >
+                                {gPublishing ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+                                {googleConnected ? 'Post to Google' : 'Google (not connected)'}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}
