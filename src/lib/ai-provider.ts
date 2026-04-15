@@ -239,7 +239,7 @@ Respond with valid JSON only:
 // ---------------------------------------------------------------------------
 
 export interface WeeklyPost {
-  day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'
+  day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
   dayLabel: string
   pillar: string        // e.g. "Build Authority"
   pillarEmoji: string
@@ -308,6 +308,68 @@ Respond with valid JSON only:
 
   const result = await callGroqWithJSON<{ posts: WeeklyPost[] }>(prompt)
   return result.posts ?? []
+}
+
+// ---------------------------------------------------------------------------
+// getWeekendPost — single optional weekend post on demand
+// ---------------------------------------------------------------------------
+
+export async function getWeekendPost(params: {
+  day: 'saturday' | 'sunday'
+  businessName: string
+  industry: string
+  description: string | null
+  brandVoice: string
+}): Promise<WeeklyPost> {
+  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
+  const pillars = {
+    saturday: { pillar: 'Fun & Engage', pillarEmoji: '🎉', purpose: 'SATURDAY — Fun & Engage: a lighthearted, interactive post that builds community (fun fact, question, poll idea, or behind-the-scenes moment)' },
+    sunday: { pillar: 'Inspire & Preview', pillarEmoji: '✨', purpose: 'SUNDAY — Inspire & Preview: an inspirational or motivational post that energises followers for the week ahead, or previews something exciting coming up' },
+  }
+
+  const { pillar, pillarEmoji, purpose } = pillars[params.day]
+
+  const prompt = `You are a strategic social media planner for small service businesses. Today is ${today}.
+
+Business: ${params.businessName}
+Industry: ${params.industry}
+Description: ${params.description ?? 'A local service business'}
+Brand voice: ${params.brandVoice}
+
+Create ONE ${params.day} social media post. The strategic purpose is:
+${purpose}
+
+Rules:
+- Make the post specific to this business — not generic filler
+- Keep it lighter / more casual than weekday posts — weekends have lower reach but higher engagement
+- The caption should be complete and ready to copy
+
+Write all three platform captions:
+- instagram: conversational, emojis, 3-5 hashtags at end, 100-200 chars body
+- facebook: warm and casual, 1-2 emojis, no hashtags, 100-200 chars
+- google_business: short, friendly, no emojis, no hashtags, 60-100 chars
+
+Respond with valid JSON only:
+{
+  "day": "${params.day}",
+  "dayLabel": "${params.day.charAt(0).toUpperCase() + params.day.slice(1)}",
+  "pillar": "${pillar}",
+  "pillarEmoji": "${pillarEmoji}",
+  "headline": "6-8 word headline",
+  "reason": "One sentence on why this post works for a ${params.day}.",
+  "templateType": "tip|customer_spotlight|behind_scenes|promotion|seasonal|about_business|custom",
+  "tone": "Friendly|Inspirational|Humorous",
+  "promptData": { "key": "value" },
+  "captions": {
+    "instagram": "full caption with hashtags",
+    "facebook": "full caption",
+    "google_business": "short text"
+  }
+}`
+
+  const result = await callGroqWithJSON<WeeklyPost>(prompt)
+  return result
 }
 
 // ---------------------------------------------------------------------------

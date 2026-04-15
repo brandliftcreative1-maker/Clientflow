@@ -17,6 +17,7 @@ import {
   publishPost,
   fetchMyPosts,
   fetchWeeklyContent,
+  fetchWeekendPost,
   generatePostImage,
   scheduleReadyPost,
   publishReadyPost,
@@ -128,6 +129,10 @@ export default function ContentStudioPage() {
   const [weeklyPlatform, setWeeklyPlatform] = useState<Record<string, SocialPlatform>>({})
   const [weeklyCaptions, setWeeklyCaptions] = useState<Record<string, Record<SocialPlatform, string>>>({})
   const [weeklyCopied, setWeeklyCopied] = useState<{ day: string; platform: SocialPlatform } | null>(null)
+
+  // Weekend (optional SAT/SUN) state
+  const [weekendPosts, setWeekendPosts] = useState<Partial<Record<'saturday' | 'sunday', WeeklyPost>>>({})
+  const [generatingWeekend, setGeneratingWeekend] = useState<Partial<Record<'saturday' | 'sunday', boolean>>>({})
 
   // Shared schedule + publish state (keyed by card id)
   const [googleConnected, setGoogleConnected] = useState(false)
@@ -242,6 +247,24 @@ export default function ContentStudioPage() {
     await navigator.clipboard.writeText(weeklyCaptions[day]?.[platform] ?? '')
     setWeeklyCopied({ day, platform })
     setTimeout(() => setWeeklyCopied(null), 2000)
+  }
+
+  const handleWeekendDayClick = async (day: 'saturday' | 'sunday') => {
+    setSelectedDay(day)
+    if (weekendPosts[day] || generatingWeekend[day]) return
+    setGeneratingWeekend(prev => ({ ...prev, [day]: true }))
+    const result = await fetchWeekendPost(day)
+    if (result.error) {
+      toast.error(result.error)
+    } else if (result.post) {
+      setWeekendPosts(prev => ({ ...prev, [day]: result.post! }))
+      setWeeklyImages(prev => ({ ...prev, [day]: result.post!.imageUrl ?? null }))
+      setWeeklyImgLoading(prev => ({ ...prev, [day]: !!result.post!.imageUrl }))
+      setWeeklyCaptions(prev => ({ ...prev, [day]: { ...result.post!.captions } }))
+      setWeeklyPlatform(prev => ({ ...prev, [day]: 'instagram' }))
+      setWeeklyImgError(prev => ({ ...prev, [day]: false }))
+    }
+    setGeneratingWeekend(prev => ({ ...prev, [day]: false }))
   }
 
   // ---- Schedule + Publish ----
@@ -637,7 +660,8 @@ export default function ContentStudioPage() {
               </div>
 
               {/* Day selector */}
-              <div className="grid grid-cols-5 gap-2 mb-6">
+              <div className="grid grid-cols-7 gap-2 mb-6">
+                {/* Weekdays */}
                 {weeklyPosts.map(wp => {
                   const isSelected = selectedDay === wp.day
                   const colors: Record<string, { idle: string; active: string }> = {
@@ -660,10 +684,53 @@ export default function ContentStudioPage() {
                     </button>
                   )
                 })}
+                {/* Optional weekend days */}
+                {(['saturday', 'sunday'] as const).map(day => {
+                  const isSelected = selectedDay === day
+                  const isLoading = generatingWeekend[day] ?? false
+                  const isGenerated = !!weekendPosts[day]
+                  const meta = { saturday: { abbr: 'SAT', emoji: '🎉', pillar: 'Fun & Engage' }, sunday: { abbr: 'SUN', emoji: '✨', pillar: 'Inspire & Preview' } }[day]
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => handleWeekendDayClick(day)}
+                      disabled={isLoading}
+                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                        isSelected && isGenerated
+                          ? 'border-teal-400 bg-teal-600 text-white shadow-lg shadow-teal-100'
+                          : isGenerated
+                          ? 'border-teal-200 bg-teal-50 hover:opacity-80'
+                          : isSelected
+                          ? 'border-gray-300 bg-gray-100'
+                          : 'border-dashed border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {isLoading
+                        ? <Loader2 size={18} className="animate-spin text-gray-400" />
+                        : <span className="text-lg">{meta.emoji}</span>
+                      }
+                      <span className={`text-xs font-bold uppercase tracking-wide ${isSelected && isGenerated ? 'text-white' : isGenerated ? 'text-teal-700' : 'text-gray-400'}`}>
+                        {meta.abbr}
+                      </span>
+                      <span className={`text-xs leading-tight text-center ${isSelected && isGenerated ? 'text-white/90' : isGenerated ? 'text-teal-600' : 'text-gray-400'}`}>
+                        {isLoading ? 'Generating…' : isGenerated ? meta.pillar : '+ Optional'}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
 
+              {/* Weekend generating state */}
+              {(selectedDay === 'saturday' || selectedDay === 'sunday') && generatingWeekend[selectedDay] && (
+                <div className="border border-gray-200 rounded-2xl p-12 flex flex-col items-center gap-3">
+                  <Loader2 size={24} className="animate-spin text-teal-400" />
+                  <p className="text-sm text-gray-500">Generating your {selectedDay} post…</p>
+                  <p className="text-xs text-gray-400">This takes about 10 seconds</p>
+                </div>
+              )}
+
               {/* Selected day post card */}
-              {weeklyPosts.filter(wp => wp.day === selectedDay).map(wp => {
+              {[...weeklyPosts, ...Object.values(weekendPosts).filter((wp): wp is WeeklyPost => !!wp)].filter(wp => wp.day === selectedDay).map(wp => {
                 const imgUrl = weeklyImages[wp.day] ?? null
                 const imgLoading = weeklyImgLoading[wp.day] ?? false
                 const imgError = weeklyImgError[wp.day] ?? false
@@ -677,6 +744,8 @@ export default function ContentStudioPage() {
                   wednesday: { bar: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-200',         accent: 'text-sky-700 bg-sky-50'         },
                   thursday:  { bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'text-emerald-700 bg-emerald-50' },
                   friday:    { bar: 'bg-rose-500',   badge: 'bg-rose-50 text-rose-700 border-rose-200',      accent: 'text-rose-700 bg-rose-50'      },
+                  saturday:  { bar: 'bg-teal-500',   badge: 'bg-teal-50 text-teal-700 border-teal-200',      accent: 'text-teal-700 bg-teal-50'      },
+                  sunday:    { bar: 'bg-indigo-500', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', accent: 'text-indigo-700 bg-indigo-50' },
                 }
                 const style = dayAccent[wp.day] ?? dayAccent.monday
                 const tmpl = TEMPLATES.find(t => t.type === wp.templateType)

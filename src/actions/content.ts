@@ -8,6 +8,7 @@ import {
   getPostRecommendations,
   getReadyToPostContent,
   getWeeklyContent,
+  getWeekendPost,
   type SocialCaptions,
   type SocialPlatform,
   type SocialTemplateType,
@@ -144,6 +145,38 @@ export async function fetchWeeklyContent(): Promise<{ posts: WeeklyPost[]; error
     return { posts: withImages }
   } catch (err) {
     return { posts: [], error: err instanceof Error ? err.message : 'Failed to generate weekly plan' }
+  }
+}
+
+// ---- Weekend Post (on-demand, single day) ----
+
+export async function fetchWeekendPost(
+  day: 'saturday' | 'sunday'
+): Promise<{ post: WeeklyPost | null; error?: string }> {
+  const { user, account } = await getAccountAndUser()
+  if (!user || !account) return { post: null, error: 'Not authenticated' }
+
+  try {
+    const post = await getWeekendPost({
+      day,
+      businessName: account.business_name,
+      industry: account.industry,
+      description: (account as { description?: string | null }).description ?? null,
+      brandVoice: account.brand_voice,
+    })
+    try {
+      const imageUrl = await generateSocialImage({
+        templateType: post.templateType,
+        promptData: post.promptData,
+        businessName: account.business_name,
+        primaryColor: account.primary_color,
+      })
+      return { post: { ...post, imageUrl } }
+    } catch {
+      return { post: { ...post, imageUrl: null } }
+    }
+  } catch (err) {
+    return { post: null, error: err instanceof Error ? err.message : 'Failed to generate weekend post' }
   }
 }
 
