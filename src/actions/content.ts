@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import {
   generateSocialCaptions,
   generateSocialImage,
@@ -577,6 +577,159 @@ export async function disconnectGoogle(): Promise<{ error?: string }> {
     .eq('id', account.id)
 
   return { error: error?.message }
+}
+
+// ---- Schedule a ready/weekly post + send reminder email ----
+
+export async function scheduleReadyPost(params: {
+  templateType: string
+  promptData: Record<string, string>
+  captions: SocialCaptions
+  imageUrl: string | null
+  scheduledDate: string   // YYYY-MM-DD
+}): Promise<{ postId: string | null; error?: string }> {
+  const { user, account, supabase } = await getAccountAndUser()
+  if (!user || !account) return { postId: null, error: 'Not authenticated' }
+
+  // Save post to DB
+  let postId: string | null = null
+  try {
+    const { data } = await supabase
+      .from('content_posts')
+      .insert({
+        account_id: account.id,
+        template_type: params.templateType,
+        prompt_data: params.promptData as unknown as import('@/types/database').Json,
+        image_url: params.imageUrl,
+        captions: params.captions as unknown as import('@/types/database').Json,
+        status: 'scheduled',
+        scheduled_date: params.scheduledDate,
+      })
+      .select('id')
+      .single()
+    postId = data?.id ?? null
+  } catch { /* DB not set up yet — continue */ }
+
+  // Send reminder email via Resend
+  try {
+    const { Resend } = await import('resend')
+    const resend = new Resend(process.env.RESEND_API_KEY!)
+
+    const appUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    const dateFormatted = new Date(params.scheduledDate + 'T12:00:00').toLocaleDateString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric',
+    })
+
+    // Get user's email from Supabase auth
+    const serviceSupabase = await createServiceClient()
+    const { data: { user: authUser } } = await serviceSupabase.auth.admin.getUserById(user.id)
+    const toEmail = authUser?.email
+    if (toEmail) {
+      await resend.emails.send({
+        from: `ClientFlow <onboarding@resend.dev>`,
+        to: toEmail,
+        subject: `📅 Reminder: You have a post scheduled for ${dateFormatted}`,
+        html: `
+          <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+            <h2 style="margin:0 0 8px">Your post is scheduled for ${dateFormatted}</h2>
+            <p style="color:#555;margin:0 0 20px">This is your reminder to copy and post your content on each platform.</p>
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:20px;">
+              <p style="margin:0 0 8px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Instagram</p>
+              <p style="margin:0;font-size:14px;color:#111">${params.captions.instagram}</p>
+            </div>
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:20px;">
+              <p style="margin:0 0 8px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Facebook</p>
+              <p style="margin:0;font-size:14px;color:#111">${params.captions.facebook}</p>
+            </div>
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:24px;">
+              <p style="margin:0 0 8px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Google Business</p>
+              <p style="margin:0;font-size:14px;color:#111">${params.captions.google_business}</p>
+            </div>
+            <a href="${appUrl}/dashboard/content" style="background:#2563eb;color:white;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">
+              Open Content Studio →
+            </a>
+          </div>
+        `,
+      })
+    }
+  } catch { /* Email sending is non-fatal */ }
+
+  return { postId }
+}
+
+// ---- Publish a ready/weekly post to Google Business ----
+
+export async function publishReadyPost(params: {
+  templateType: string
+  promptData: Record<string, string>
+  captions: SocialCaptions
+  imageUrl: string | null
+}): Promise<{ googlePosted: boolean; error?: string }> {
+  const { user, account, supabase } = await getAccountAndUser()
+  if (!user || !account) return { googlePosted: false, error: 'Not authenticated' }
+
+  if (!account.google_refresh_token || !account.google_location_name) {
+    return { googlePosted: false, error: 'Google Business not connected. Connect it in Settings first.' }
+  }
+
+  // Save to DB first (non-fatal)
+  let postId: string | null = null
+  try {
+    const { data } = await supabase
+      .from('content_posts')
+      .insert({
+        account_id: account.id,
+        template_type: params.templateType,
+        prompt_data: params.promptData as unknown as import('@/types/database').Json,
+        image_url: params.imageUrl,
+        captions: params.captions as unknown as import('@/types/database').Json,
+        status: 'published',
+        scheduled_date: new Date().toISOString().split('T')[0],
+      })
+      .select('id')
+      .single()
+    postId = data?.id ?? null
+  } catch { /* DB not set up yet */ }
+
+  // Publish to Google Business
+  try {
+    const accessToken = await getGoogleAccessToken(account.google_refresh_token)
+    const body: Record<string, unknown> = {
+      languageCode: 'en',
+      summary: params.captions.google_business,
+    }
+    if (params.imageUrl) {
+      body.media = [{ mediaFormat: 'PHOTO', sourceUrl: params.imageUrl }]
+    }
+    const res = await fetch(
+      `https://mybusiness.googleapis.com/v4/${account.google_location_name}/localPosts`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    )
+    if (!res.ok) {
+      const errText = await res.text()
+      return { googlePosted: false, error: `Google post failed: ${errText}` }
+    }
+    if (postId) {
+      await supabase.from('content_posts')
+        .update({ google_posted_at: new Date().toISOString() })
+        .eq('id', postId)
+    }
+    return { googlePosted: true }
+  } catch (err) {
+    return { googlePosted: false, error: err instanceof Error ? err.message : 'Google post failed' }
+  }
+}
+
+// ---- Check Google Business connection status ----
+
+export async function getGoogleConnectionStatus(): Promise<{ connected: boolean }> {
+  const { user, account } = await getAccountAndUser()
+  if (!user || !account) return { connected: false }
+  return { connected: !!(account.google_refresh_token && account.google_location_name) }
 }
 
 // ---- Internal: refresh Google access token ----

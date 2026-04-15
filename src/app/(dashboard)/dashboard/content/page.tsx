@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { CalendarDays, Loader2, RefreshCw, Download, Copy, Check, Sparkles, PenLine } from 'lucide-react'
+import { CalendarDays, Loader2, RefreshCw, Download, Copy, Check, Sparkles, PenLine, Calendar, Send } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
   generatePost,
@@ -18,6 +18,9 @@ import {
   fetchReadyContent,
   fetchWeeklyContent,
   generatePostImage,
+  scheduleReadyPost,
+  publishReadyPost,
+  getGoogleConnectionStatus,
   type ContentPost,
   type ReadyPost,
   type WeeklyPost,
@@ -105,6 +108,14 @@ export default function ContentStudioPage() {
   const [weeklyPlatform, setWeeklyPlatform] = useState<Record<string, SocialPlatform>>({})
   const [weeklyCaptions, setWeeklyCaptions] = useState<Record<string, Record<SocialPlatform, string>>>({})
   const [weeklyCopied, setWeeklyCopied] = useState<{ day: string; platform: SocialPlatform } | null>(null)
+  // Schedule + publish state (shared by Top Picks and This Week, keyed by card id)
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [scheduleDate, setScheduleDate] = useState<Record<string, string>>({})
+  const [scheduleOpen, setScheduleOpen] = useState<Record<string, boolean>>({})
+  const [scheduling, setScheduling] = useState<Record<string, boolean>>({})
+  const [scheduled, setScheduled] = useState<Record<string, string>>({})  // value = formatted date
+  const [googlePublishing, setGooglePublishing] = useState<Record<string, boolean>>({})
+  const [googlePosted, setGooglePosted] = useState<Record<string, boolean>>({})
   const [cardPlatform, setCardPlatform] = useState<Record<number, SocialPlatform>>({ 0: 'instagram', 1: 'instagram', 2: 'instagram' })
   const [cardCopied, setCardCopied] = useState<{ index: number; platform: SocialPlatform } | null>(null)
   const [editedCaptions, setEditedCaptions] = useState<Record<number, Record<SocialPlatform, string>>>({})
@@ -128,6 +139,7 @@ export default function ContentStudioPage() {
   const [publishing, setPublishing] = useState(false)
 
   useEffect(() => {
+    getGoogleConnectionStatus().then(r => setGoogleConnected(r.connected))
     fetchReadyContent().then(result => {
       if (result.posts.length > 0) {
         setReadyPosts(result.posts)
@@ -277,6 +289,52 @@ export default function ContentStudioPage() {
     await navigator.clipboard.writeText(text)
     setWeeklyCopied({ day, platform })
     setTimeout(() => setWeeklyCopied(null), 2000)
+  }
+
+  const todayISO = new Date().toISOString().split('T')[0]
+
+  const handleSchedule = async (
+    cardId: string,
+    params: { templateType: string; promptData: Record<string, string>; captions: Record<SocialPlatform, string>; imageUrl: string | null }
+  ) => {
+    const date = scheduleDate[cardId] ?? todayISO
+    setScheduling(prev => ({ ...prev, [cardId]: true }))
+    const result = await scheduleReadyPost({
+      templateType: params.templateType,
+      promptData: params.promptData,
+      captions: params.captions as import('@/lib/ai-provider').SocialCaptions,
+      imageUrl: params.imageUrl,
+      scheduledDate: date,
+    })
+    setScheduling(prev => ({ ...prev, [cardId]: false }))
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      const formatted = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      setScheduled(prev => ({ ...prev, [cardId]: formatted }))
+      setScheduleOpen(prev => ({ ...prev, [cardId]: false }))
+      toast.success(`Scheduled for ${formatted}! Reminder email sent.`)
+    }
+  }
+
+  const handleGooglePublish = async (
+    cardId: string,
+    params: { templateType: string; promptData: Record<string, string>; captions: Record<SocialPlatform, string>; imageUrl: string | null }
+  ) => {
+    setGooglePublishing(prev => ({ ...prev, [cardId]: true }))
+    const result = await publishReadyPost({
+      templateType: params.templateType,
+      promptData: params.promptData,
+      captions: params.captions as import('@/lib/ai-provider').SocialCaptions,
+      imageUrl: params.imageUrl,
+    })
+    setGooglePublishing(prev => ({ ...prev, [cardId]: false }))
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      setGooglePosted(prev => ({ ...prev, [cardId]: true }))
+      toast.success('Posted to Google Business!')
+    }
   }
 
   const handleCardCopy = async (index: number, platform: SocialPlatform) => {
@@ -604,17 +662,84 @@ export default function ContentStudioPage() {
                           </button>
                         </div>
 
-                        {/* Footer */}
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                          <span className="text-xs text-gray-400">
-                            {TEMPLATES.find(t => t.type === rp.templateType)?.emoji}{' '}
-                            {TEMPLATES.find(t => t.type === rp.templateType)?.label}
-                          </span>
-                          <span className="text-xs text-gray-400 flex items-center gap-1">
-                            <PenLine size={10} />
-                            Click caption to edit
-                          </span>
-                        </div>
+                        {/* Footer: schedule + Google publish */}
+                        {(() => {
+                          const cardId = `pick-${i}`
+                          const caps = editedCaptions[i] ?? rp.captions
+                          const imgUrl = cardImages[i] ?? null
+                          const isScheduled = scheduled[cardId]
+                          const isGPosted = googlePosted[cardId]
+                          return (
+                            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                {/* Schedule button */}
+                                {isScheduled ? (
+                                  <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
+                                    <Check size={11} /> Scheduled for {isScheduled}
+                                  </span>
+                                ) : scheduleOpen[cardId] ? (
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <input
+                                      type="date"
+                                      min={todayISO}
+                                      value={scheduleDate[cardId] ?? todayISO}
+                                      onChange={e => setScheduleDate(prev => ({ ...prev, [cardId]: e.target.value }))}
+                                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                    />
+                                    <button
+                                      onClick={() => handleSchedule(cardId, { templateType: rp.templateType, promptData: rp.promptData, captions: caps, imageUrl: imgUrl })}
+                                      disabled={scheduling[cardId]}
+                                      className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                                    >
+                                      {scheduling[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                                      Confirm
+                                    </button>
+                                    <button onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: false }))} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: true }))}
+                                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                                  >
+                                    <Calendar size={11} /> Schedule
+                                  </button>
+                                )}
+                                {/* Google Business publish */}
+                                {!scheduleOpen[cardId] && (
+                                  isGPosted ? (
+                                    <span className="flex items-center gap-1.5 text-xs text-orange-600 font-medium px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-200">
+                                      <Check size={11} /> Posted to Google
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => googleConnected
+                                        ? handleGooglePublish(cardId, { templateType: rp.templateType, promptData: rp.promptData, captions: caps, imageUrl: imgUrl })
+                                        : toast.error('Connect Google Business in Settings first.')}
+                                      disabled={googlePublishing[cardId]}
+                                      className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+                                        googleConnected
+                                          ? 'border-orange-300 text-orange-600 hover:bg-orange-50'
+                                          : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                      }`}
+                                    >
+                                      {googlePublishing[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+                                      {googleConnected ? 'Post to Google' : 'Google (not connected)'}
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-400">
+                                  {TEMPLATES.find(t => t.type === rp.templateType)?.emoji}{' '}
+                                  {TEMPLATES.find(t => t.type === rp.templateType)?.label}
+                                </span>
+                                <span className="text-xs text-gray-400 flex items-center gap-1">
+                                  <PenLine size={10} /> Click caption to edit
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -808,16 +933,82 @@ export default function ContentStudioPage() {
                                 {isCopied ? 'Copied!' : `Copy ${platformTabs.find(p => p.key === activePlatform)?.label}`}
                               </button>
                             </div>
-                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                              <span className="text-xs text-gray-400">
-                                {TEMPLATES.find(t => t.type === wp.templateType)?.emoji}{' '}
-                                {TEMPLATES.find(t => t.type === wp.templateType)?.label}
-                              </span>
-                              <span className="text-xs text-gray-400 flex items-center gap-1">
-                                <PenLine size={10} />
-                                Click caption to edit
-                              </span>
-                            </div>
+                            {/* Footer: schedule + Google publish */}
+                            {(() => {
+                              const cardId = `week-${wp.day}`
+                              const caps = weeklyCaptions[wp.day] ?? wp.captions
+                              const imgUrl = weeklyImages[wp.day] ?? null
+                              const isScheduled = scheduled[cardId]
+                              const isGPosted = googlePosted[cardId]
+                              return (
+                                <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
+                                  <div className="flex items-center gap-2">
+                                    {isScheduled ? (
+                                      <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
+                                        <Check size={11} /> Scheduled for {isScheduled}
+                                      </span>
+                                    ) : scheduleOpen[cardId] ? (
+                                      <div className="flex items-center gap-2 flex-1">
+                                        <input
+                                          type="date"
+                                          min={todayISO}
+                                          value={scheduleDate[cardId] ?? todayISO}
+                                          onChange={e => setScheduleDate(prev => ({ ...prev, [cardId]: e.target.value }))}
+                                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        />
+                                        <button
+                                          onClick={() => handleSchedule(cardId, { templateType: wp.templateType, promptData: wp.promptData, captions: caps, imageUrl: imgUrl })}
+                                          disabled={scheduling[cardId]}
+                                          className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                                        >
+                                          {scheduling[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                                          Confirm
+                                        </button>
+                                        <button onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: false }))} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: true }))}
+                                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                                      >
+                                        <Calendar size={11} /> Schedule
+                                      </button>
+                                    )}
+                                    {!scheduleOpen[cardId] && (
+                                      isGPosted ? (
+                                        <span className="flex items-center gap-1.5 text-xs text-orange-600 font-medium px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-200">
+                                          <Check size={11} /> Posted to Google
+                                        </span>
+                                      ) : (
+                                        <button
+                                          onClick={() => googleConnected
+                                            ? handleGooglePublish(cardId, { templateType: wp.templateType, promptData: wp.promptData, captions: caps, imageUrl: imgUrl })
+                                            : toast.error('Connect Google Business in Settings first.')}
+                                          disabled={googlePublishing[cardId]}
+                                          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+                                            googleConnected
+                                              ? 'border-orange-300 text-orange-600 hover:bg-orange-50'
+                                              : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                                          }`}
+                                        >
+                                          {googlePublishing[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+                                          {googleConnected ? 'Post to Google' : 'Google (not connected)'}
+                                        </button>
+                                      )
+                                    )}
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-400">
+                                      {TEMPLATES.find(t => t.type === wp.templateType)?.emoji}{' '}
+                                      {TEMPLATES.find(t => t.type === wp.templateType)?.label}
+                                    </span>
+                                    <span className="text-xs text-gray-400 flex items-center gap-1">
+                                      <PenLine size={10} /> Click caption to edit
+                                    </span>
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </div>
                         </div>
                       </div>
