@@ -260,29 +260,36 @@ export async function getWeeklyContent(params: {
 }): Promise<WeeklyPost[]> {
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
-  const prompt = `You are a strategic social media planner for small service businesses. Today is ${today}.
+  const prompt = `You are a strategic social media planner for small service businesses. Your goal is to create content that drives real engagement — not generic filler that gets ignored. Today is ${today}.
 
 Business: ${params.businessName}
 Industry: ${params.industry}
 Description: ${params.description ?? 'A local service business'}
 Brand voice: ${params.brandVoice}
 
-Create a 5-day social media content plan (Monday–Friday) where EACH DAY serves a different strategic purpose:
-- MONDAY — Educate & Inspire: a tip, insight, or educational piece that shows expertise
-- TUESDAY — Real Story: customer testimonial, review, or success story that builds social proof
-- WEDNESDAY — Behind the Scenes: authentic look at the business, team, or process
-- THURSDAY — Drive Action: a direct promotion, offer, or strong call to action
-- FRIDAY — Brand & Community: company story, values, or community connection
+Create a 5-day social media content plan (Monday–Friday). Each day has a strategic purpose and a specific writing strategy:
 
-Rules:
-- Make EVERY post specific to this business — not generic filler
-- Each caption should be complete and ready to copy
-- The 5 posts together should feel balanced and varied
+MONDAY — Educate & Inspire → COUNTERINTUITIVE HOOK:
+Open with a statement that challenges what readers believe about this industry. Structure: surprising opener → explain why the assumption is wrong → deliver the insight → soft CTA. NEVER start with "Here are X tips".
 
-For each post write all three platform captions:
-- instagram: conversational, emojis, 5-8 hashtags at end, 150-250 chars body
-- facebook: warm and conversational, 1-2 emojis, no hashtags, 150-280 chars
-- google_business: short, direct, no emojis, no hashtags, 80-140 chars
+TUESDAY — Real Story → TRANSFORMATION STORY:
+Tell a customer experience as a mini-story. Structure: before state (their problem) → turning point (contacting the business) → after state (result) → quote as confirmation → soft CTA. NEVER lead with the quote.
+
+WEDNESDAY — Behind the Scenes → CURIOSITY GAP:
+Open with "what nobody sees" or "what most people don't know" framing. Structure: curiosity-gap opener → reveal the process → connect to brand values → soft CTA. NEVER open with "Here's our team!".
+
+THURSDAY — Drive Action → PAIN POINT FIRST:
+Open with the customer's problem — NOT the offer. Structure: name the pain → your service as solution → offer as relief → urgency CTA. NEVER start with a price, a percentage, or the business name.
+
+FRIDAY — Brand & Community → ORIGIN / VALUES STORY:
+Lead with a founding moment or personal "why" — not credentials. Structure: founding moment → what it created → what the business stands for → community CTA. NEVER start with "Family-owned for X years".
+
+PLATFORM RULES — apply to every post:
+INSTAGRAM: First line = standalone hook (shows before "more" cutoff). Short punchy sentences, line breaks between thoughts. Emojis contextual, not decorative. End with 4–7 hashtags on their own line. Body 150–250 chars (not counting hashtags).
+FACEBOOK: Warm, personal, neighbor-tone. First sentence earns the "see more" click. 1–2 emojis max. No hashtags. 150–280 chars.
+GOOGLE BUSINESS: Search result snippet style. Service + benefit + CTA. No emojis, no hashtags. 80–140 chars.
+
+Make EVERY post specific to this exact business. The 5 posts together should feel like a coherent week from a real brand.
 
 Respond with valid JSON only:
 {
@@ -337,18 +344,19 @@ Industry: ${params.industry}
 Description: ${params.description ?? 'A local service business'}
 Brand voice: ${params.brandVoice}
 
-Create ONE ${params.day} social media post. The strategic purpose is:
-${purpose}
+Create ONE ${params.day} social media post. Strategic purpose: ${purpose}
 
-Rules:
-- Make the post specific to this business — not generic filler
-- Keep it lighter / more casual than weekday posts — weekends have lower reach but higher engagement
-- The caption should be complete and ready to copy
+${params.day === 'saturday'
+  ? `SATURDAY WRITING STRATEGY — Relatable & Engaging:
+Keep it lighter and more conversational than weekday posts. Use a question, fun observation, or relatable scenario as the hook. Weekend content has lower reach but higher engagement — write for connection, not conversion. No hard sells.`
+  : `SUNDAY WRITING STRATEGY — Forward-Looking & Motivational:
+Open with an inspiring or forward-looking hook that energises followers for the week ahead. Can preview something coming or share a belief/value. Write with warmth and optimism — no urgency, no promotions.`
+}
 
-Write all three platform captions:
-- instagram: conversational, emojis, 3-5 hashtags at end, 100-200 chars body
-- facebook: warm and casual, 1-2 emojis, no hashtags, 100-200 chars
-- google_business: short, friendly, no emojis, no hashtags, 60-100 chars
+PLATFORM RULES:
+INSTAGRAM: First line = standalone hook. Short punchy sentences, line breaks between thoughts. Emojis contextual. End with 3–5 hashtags on their own line. Body 100–200 chars.
+FACEBOOK: Warm and casual, like a weekend message to a friend. 1–2 emojis max. No hashtags. 100–200 chars.
+GOOGLE BUSINESS: Short, friendly, no emojis, no hashtags. 60–100 chars.
 
 Respond with valid JSON only:
 {
@@ -471,6 +479,47 @@ Respond with valid JSON only:
 }
 
 // ---------------------------------------------------------------------------
+// Content strategies — injected per template type into caption prompts
+// ---------------------------------------------------------------------------
+
+const CONTENT_STRATEGIES: Record<SocialTemplateType, string> = {
+  promotion: `WRITING STRATEGY — Pain Point First:
+Open with the problem or frustration the customer is facing right now — NOT the offer or price.
+Structure: Name the customer's pain → position your service as the solution → present the offer as the relief → urgency CTA.
+NEVER start with the business name, a percentage off, or "Save big on". Make the reader feel seen before you sell to them.`,
+
+  tip: `WRITING STRATEGY — Counterintuitive Hook:
+Open with a statement that challenges what the reader believes or reveals something surprising about the industry.
+Structure: Surprising or counterintuitive opener → explain why the common assumption is wrong → deliver the correct insight → soft CTA.
+NEVER start with "Here are X tips", "Did you know", or a numbered list. Create a curiosity gap that forces the reader to keep going.`,
+
+  customer_spotlight: `WRITING STRATEGY — Transformation Story:
+Tell the customer's experience as a mini-story with emotional arc — not a quote in a box.
+Structure: Before state (the customer's problem or frustration) → turning point (how they found/used the business) → after state (the result) → customer quote as confirmation → soft CTA.
+NEVER lead with the quote. NEVER write "Our customer loved us." Build the emotional arc first, then let the quote land.`,
+
+  behind_scenes: `WRITING STRATEGY — Curiosity Gap:
+Open with "what nobody sees" or "what most people don't know" framing to turn ordinary process into insider access.
+Structure: Curiosity-gap opener → reveal the process, detail, or effort → connect to brand values → soft CTA.
+NEVER open with "Here's our team!" or generic cheerful process announcements. Make it feel like the reader is getting access to something usually hidden.`,
+
+  seasonal: `WRITING STRATEGY — Timely Relevance:
+Connect the season or event to a specific problem or situation the customer is actually experiencing right now.
+Structure: Timely hook naming the customer's current reality → bridge to how your business is relevant → value or offer → CTA.
+NEVER write generic holiday greetings ("Happy Spring!") with no business relevance. The season must matter to the customer's life.`,
+
+  about_business: `WRITING STRATEGY — Origin / Values Story:
+Lead with the founding moment, a personal "why", or a specific belief — not credentials, years in business, or certifications.
+Structure: Founding moment or personal motivation → what that experience created → what the business stands for today → community/relationship CTA.
+NEVER start with "Family-owned for X years", years in business, or a credential list. People connect with stories, not resumes.`,
+
+  custom: `WRITING STRATEGY — Storytelling Hook:
+Open with a hook — a question, bold statement, or relatable scenario that immediately speaks to the reader.
+Structure: Hook → insight or story that delivers real value → CTA.
+Write as if a thoughtful human crafted this specifically for this business and this moment. Avoid anything that sounds templated or generic.`,
+}
+
+// ---------------------------------------------------------------------------
 // generateSocialCaptions — all three platforms in one call
 // ---------------------------------------------------------------------------
 
@@ -485,24 +534,31 @@ export async function generateSocialCaptions(params: {
   const { tone, audience, cta, ...contentFields } = params.promptData
   const contentStr = Object.entries(contentFields).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n')
 
-  const prompt = `You are a social media copywriter for small service businesses.
+  const strategy = CONTENT_STRATEGIES[params.templateType]
+
+  const prompt = `You are an expert social media copywriter for small service businesses. Your goal is to write content that stops the scroll, earns engagement, and drives real business results — not content that sounds like an ad.
 
 Business: ${params.businessName}
 Industry: ${params.industry}
 Brand voice: ${params.brandVoice}
-Tone for this post: ${tone ?? 'Friendly'}
+Tone: ${tone ?? 'Friendly'}
 Post type: ${params.templateType.replace(/_/g, ' ')}
 ${contentStr ? `Post details:\n${contentStr}` : ''}
 ${audience ? `Target audience: ${audience}` : ''}
-${cta ? `Desired call to action: ${cta}` : ''}
+${cta ? `Call to action: ${cta}` : ''}
 
-Write three separate social media captions for this post — one for each platform. Each caption should be tailored to the norms of that platform:
-- Instagram: conversational, emoji-friendly, 5-10 relevant hashtags at the end, 150-280 chars of body text
-- Facebook: slightly longer and more conversational, 1-2 emoji max, no hashtags, 150-300 chars
-- Google Business: short, factual, professional, no emoji, no hashtags, 100-150 chars
-${cta ? `All three captions must include the call to action: ${cta}` : ''}
+${strategy}
 
-Respond with valid JSON only in this exact format:
+PLATFORM RULES — apply exactly:
+
+INSTAGRAM: First line MUST work as a standalone hook (shows before "more" cutoff). Short punchy sentences, one idea per line, line breaks between thoughts. Emojis used contextually to punctuate meaning — not decoration. End with 4–7 relevant hashtags on their own line. Body 150–250 chars (not counting hashtags).
+
+FACEBOOK: Write like a message to a neighbor — warm, personal, zero corporate tone. First sentence must earn the "see more" click. 1–2 emojis max. No hashtags. 150–300 chars.
+
+GOOGLE BUSINESS: Write like a useful search result snippet. Lead with the service or benefit. Clear CTA (call, book, visit). No emojis, no hashtags. 80–140 chars.
+${cta ? `\nAll three captions must include the call to action: ${cta}` : ''}
+
+Respond with valid JSON only:
 {
   "instagram": "full instagram caption including hashtags",
   "facebook": "full facebook caption",
@@ -529,12 +585,12 @@ export async function regeneratePlatformCaption(params: {
     .join('\n')
 
   const platformGuides: Record<SocialPlatform, string> = {
-    instagram: 'conversational, emoji-friendly, 5-10 relevant hashtags at the end, 150-280 chars of body text',
-    facebook: 'slightly longer and more conversational, 1-2 emoji max, no hashtags, 150-300 chars',
-    google_business: 'short, factual, professional, no emoji, no hashtags, 100-150 chars',
+    instagram: 'First line MUST work as a standalone hook (shows before "more" cutoff). Short punchy sentences, one idea per line, line breaks between thoughts. Emojis used contextually to punctuate meaning — not decoration. End with 4–7 relevant hashtags on their own line. Body 150–250 chars (not counting hashtags).',
+    facebook: 'Write like a message to a neighbor — warm, personal, zero corporate tone. First sentence must earn the "see more" click. 1–2 emojis max. No hashtags. 150–300 chars.',
+    google_business: 'Write like a useful search result snippet. Lead with the service or benefit. Clear CTA (call, book, visit). No emojis, no hashtags. 80–140 chars.',
   }
 
-  const prompt = `You are a social media copywriter for small service businesses.
+  const prompt = `You are an expert social media copywriter for small service businesses. Rewrite the ${params.platform.replace(/_/g, ' ')} caption using the strategy and platform rules below.
 
 Business: ${params.businessName}
 Industry: ${params.industry}
@@ -543,9 +599,12 @@ Post type: ${params.templateType.replace(/_/g, ' ')}
 Details:
 ${promptDataStr}
 
-Write a fresh ${params.platform.replace(/_/g, ' ')} caption. Style: ${platformGuides[params.platform]}
+${CONTENT_STRATEGIES[params.templateType]}
 
-Respond with valid JSON only in this exact format:
+PLATFORM RULE for ${params.platform.replace(/_/g, ' ')}:
+${platformGuides[params.platform]}
+
+Respond with valid JSON only:
 { "caption": "the caption text here" }`
 
   const result = await callGroqWithJSON<{ caption: string }>(prompt)
