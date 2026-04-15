@@ -113,6 +113,7 @@ export default function ContentStudioPage() {
   const [myPostsLoaded, setMyPostsLoaded] = useState(false)
   const [myPostsFilter, setMyPostsFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
   const [myPostCopied, setMyPostCopied] = useState<{ postId: string; platform: SocialPlatform } | null>(null)
+  const [expandedCaption, setExpandedCaption] = useState<{ postId: string; platform: string } | null>(null)
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
 
   // This Week state
@@ -543,18 +544,24 @@ export default function ContentStudioPage() {
                         <span className="text-xs text-gray-400 ml-auto">{tmpl?.emoji} {tmpl?.label}</span>
                       </div>
                       <p className="text-sm text-gray-700 line-clamp-2 mb-2">{preview}</p>
+                      {/* Platform selector + delete */}
                       <div className="flex items-center gap-2">
                         {PLATFORM_TABS.map(pt => {
+                          const isActive = expandedCaption?.postId === p.id && expandedCaption.platform === pt.key
                           const cap = (p.captions as unknown as Record<string, string>)[pt.key] ?? ''
-                          const isCopied = myPostCopied?.postId === p.id && myPostCopied.platform === pt.key
                           return (
                             <button
                               key={pt.key}
-                              onClick={() => handleMyPostCopy(p.id, pt.key, cap)}
                               disabled={!cap}
-                              className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg font-medium transition-all ${isCopied ? 'bg-green-100 text-green-700' : `${pt.color} text-white opacity-90 hover:opacity-100`} disabled:opacity-30`}
+                              onClick={() =>
+                                setExpandedCaption(isActive ? null : { postId: p.id, platform: pt.key })
+                              }
+                              className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all border ${
+                                isActive
+                                  ? `${pt.color} text-white border-transparent`
+                                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
+                              } disabled:opacity-30`}
                             >
-                              {isCopied ? <Check size={10} /> : <Copy size={10} />}
                               {pt.abbr}
                             </button>
                           )
@@ -567,6 +574,28 @@ export default function ContentStudioPage() {
                           {deletingPostId === p.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                         </button>
                       </div>
+                      {/* Expanded caption */}
+                      {expandedCaption?.postId === p.id && (() => {
+                        const pt = PLATFORM_TABS.find(t => t.key === expandedCaption.platform)
+                        const cap = (p.captions as unknown as Record<string, string>)[expandedCaption.platform] ?? ''
+                        const isCopied = myPostCopied?.postId === p.id && myPostCopied.platform === expandedCaption.platform
+                        return (
+                          <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3 flex gap-2">
+                            <p className="text-sm text-gray-700 flex-1 whitespace-pre-wrap leading-relaxed">{cap}</p>
+                            <button
+                              onClick={() => handleMyPostCopy(p.id, expandedCaption.platform as SocialPlatform, cap)}
+                              className={`flex-shrink-0 flex items-center gap-1 self-start text-xs px-2.5 py-1.5 rounded-lg font-medium border transition-all ${
+                                isCopied
+                                  ? 'bg-green-50 border-green-200 text-green-700'
+                                  : `${pt?.color ?? 'bg-gray-200'} text-white border-transparent hover:opacity-90`
+                              }`}
+                            >
+                              {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                              {isCopied ? 'Copied' : 'Copy'}
+                            </button>
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 )
