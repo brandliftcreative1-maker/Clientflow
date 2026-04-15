@@ -1057,7 +1057,9 @@ export default function ContentStudioPage() {
                     </button>
                   </div>
                   <div className="mt-auto pt-3 border-t border-gray-100">
-                    <p className="text-xs text-gray-400">Google Business auto-post can be enabled in <a href="/dashboard/settings" className="text-blue-500 hover:underline">Settings</a>.</p>
+                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                      <Check size={11} className="text-green-500" /> Saved to <button onClick={() => setActiveTab('posts')} className="text-blue-500 hover:underline">My Posts</button> as Draft
+                    </p>
                   </div>
                 </div>
                 <div className="flex-1 p-5 overflow-y-auto flex flex-col gap-4">
@@ -1090,10 +1092,56 @@ export default function ContentStudioPage() {
                       </div>
                     )
                   })}
-                  <Button onClick={handlePublish} disabled={publishing || post.status === 'published'} className="w-full py-3 text-sm">
-                    {publishing ? <Loader2 size={16} className="animate-spin mr-2" /> : '🚀 '}
-                    {post.status === 'published' ? 'Published' : publishing ? 'Publishing...' : 'Publish — Post to Google Business + Copy others'}
-                  </Button>
+                  {/* Schedule + Google Business */}
+                  <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-gray-100">
+                    {scheduled[post.id] ? (
+                      <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
+                        <Check size={11} /> Scheduled for {scheduled[post.id]}
+                      </span>
+                    ) : scheduleOpen[post.id] ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <input type="date" min={todayISO}
+                          value={scheduleDate[post.id] ?? todayISO}
+                          onChange={e => setScheduleDate(prev => ({ ...prev, [post.id]: e.target.value }))}
+                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                        <button
+                          onClick={() => handleSchedule(post.id, { templateType: post.template_type, promptData: post.prompt_data as Record<string, string>, captions: captions as Record<SocialPlatform, string>, imageUrl: post.image_url })}
+                          disabled={scheduling[post.id]}
+                          className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {scheduling[post.id] ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Confirm
+                        </button>
+                        <button onClick={() => setScheduleOpen(prev => ({ ...prev, [post.id]: false }))} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setScheduleOpen(prev => ({ ...prev, [post.id]: true }))}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+                      >
+                        <Calendar size={11} /> Schedule
+                      </button>
+                    )}
+
+                    {!scheduleOpen[post.id] && (
+                      googlePosted[post.id] ? (
+                        <span className="flex items-center gap-1.5 text-xs text-orange-600 font-medium px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-200">
+                          <Check size={11} /> Posted to Google
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => googleConnected
+                            ? handleGooglePublish(post.id, { templateType: post.template_type, promptData: post.prompt_data as Record<string, string>, captions: captions as Record<SocialPlatform, string>, imageUrl: post.image_url })
+                            : toast.error('Connect Google Business in Settings first.')}
+                          disabled={googlePublishing[post.id]}
+                          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${googleConnected ? 'border-orange-300 text-orange-600 hover:bg-orange-50' : 'border-gray-200 text-gray-400 cursor-not-allowed'}`}
+                        >
+                          {googlePublishing[post.id] ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+                          {googleConnected ? 'Post to Google Business' : 'Google (not connected)'}
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
