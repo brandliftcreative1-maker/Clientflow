@@ -97,6 +97,7 @@ export default function ContentStudioPage() {
   const [cardImages, setCardImages] = useState<Record<number, string | null>>({})
   const [cardImageLoading, setCardImageLoading] = useState<Record<number, boolean>>({})
   const [cardImageError, setCardImageError] = useState<Record<number, boolean>>({})
+  const [cardImageRetries, setCardImageRetries] = useState<Record<number, number>>({})
   const uploadRefs = useRef<(HTMLInputElement | null)[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null)
   const [tone, setTone] = useState<string>('Friendly')
@@ -147,6 +148,7 @@ export default function ContentStudioPage() {
     setCardImages({})
     setCardImageLoading({})
     setCardImageError({})
+    setCardImageRetries({})
     const result = await fetchReadyContent()
     if (result.error) toast.error(result.error)
     else {
@@ -170,6 +172,7 @@ export default function ContentStudioPage() {
   const handleCardNewImage = async (i: number, rp: ReadyPost) => {
     setCardImageLoading(prev => ({ ...prev, [i]: true }))
     setCardImageError(prev => ({ ...prev, [i]: false }))
+    setCardImageRetries(prev => ({ ...prev, [i]: 0 }))
     const result = await generatePostImage(rp.templateType, rp.promptData)
     if (result.error) {
       toast.error(result.error)
@@ -177,6 +180,19 @@ export default function ContentStudioPage() {
     } else {
       setCardImages(prev => ({ ...prev, [i]: result.imageUrl }))
       setCardImageLoading(prev => ({ ...prev, [i]: !!result.imageUrl }))
+    }
+  }
+
+  const handleCardImageError = (i: number, rp: ReadyPost) => {
+    const retries = cardImageRetries[i] ?? 0
+    setCardImageLoading(prev => ({ ...prev, [i]: false }))
+    if (retries < 2) {
+      // Auto-retry silently with a new seed
+      setCardImageRetries(prev => ({ ...prev, [i]: retries + 1 }))
+      setCardImageLoading(prev => ({ ...prev, [i]: true }))
+      setTimeout(() => handleCardNewImage(i, rp), 1500)
+    } else {
+      setCardImageError(prev => ({ ...prev, [i]: true }))
     }
   }
 
@@ -393,7 +409,7 @@ export default function ContentStudioPage() {
                               {imgLoading && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gray-100 z-10">
                                   <Loader2 size={20} className="animate-spin text-gray-400" />
-                                  <span className="text-xs text-gray-400">Generating…</span>
+                                  <span className="text-xs text-gray-400">{(cardImageRetries[i] ?? 0) > 0 ? 'Retrying…' : 'Generating…'}</span>
                                 </div>
                               )}
                               <img
@@ -401,7 +417,7 @@ export default function ContentStudioPage() {
                                 alt="Post visual"
                                 className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoading ? 'opacity-0' : 'opacity-100'}`}
                                 onLoad={() => setCardImageLoading(prev => ({ ...prev, [i]: false }))}
-                                onError={() => { setCardImageLoading(prev => ({ ...prev, [i]: false })); setCardImageError(prev => ({ ...prev, [i]: true })) }}
+                                onError={() => handleCardImageError(i, rp)}
                               />
                             </>
                           ) : (
