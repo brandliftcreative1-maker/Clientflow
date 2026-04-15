@@ -57,6 +57,7 @@ export default function ContentCalendarPage() {
   const [posts, setPosts] = useState<ContentPost[]>([])
   const [cadence, setCadence] = useState<CadenceSettings | null>(null)
   const [selectedPost, setSelectedPost] = useState<ContentPost | null>(null)
+  const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform>('instagram')
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
@@ -89,6 +90,11 @@ export default function ContentCalendarPage() {
   const published = posts.filter(p => p.status === 'published').length
   const drafts = posts.filter(p => p.status === 'draft').length
   const scheduled = posts.length
+
+  const handleSelectPost = (post: ContentPost) => {
+    setSelectedPost(post)
+    setSelectedPlatform('instagram')
+  }
 
   const handleDelete = async (postId: string) => {
     await deletePost(postId)
@@ -179,7 +185,7 @@ export default function ContentCalendarPage() {
                   {dayPosts.slice(0, 2).map(post => (
                     <button
                       key={post.id}
-                      onClick={() => setSelectedPost(post)}
+                      onClick={() => handleSelectPost(post)}
                       className={`w-full text-left mb-0.5 rounded px-1.5 py-0.5 text-xs truncate flex items-center gap-1 ${
                         post.status === 'published'
                           ? 'bg-green-100 text-green-800'
@@ -267,39 +273,56 @@ export default function ContentCalendarPage() {
                 <Link href={`/dashboard/content`} className="text-xs text-blue-600 hover:underline">Edit</Link>
               </div>
 
-              {/* Platform rows */}
+              {/* Platform rows — click to switch caption */}
               <div>
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Platforms</div>
                 <div className="flex flex-col gap-1.5">
                   {PLATFORMS.map(platform => {
                     const cfg = PLATFORM_CONFIG[platform]
                     const isPosted = platform === 'google_business' ? !!selectedPost.google_posted_at : selectedPost.status === 'published'
+                    const isActive = selectedPlatform === platform
                     return (
-                      <div key={platform} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${cfg.rowBg} ${cfg.rowBorder}`}>
+                      <button
+                        key={platform}
+                        onClick={() => setSelectedPlatform(platform)}
+                        className={`w-full text-left flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
+                          isActive
+                            ? `${cfg.rowBg} ${cfg.rowBorder} ring-2 ring-offset-0 ring-current shadow-sm`
+                            : `${cfg.rowBg} ${cfg.rowBorder} hover:opacity-80`
+                        }`}
+                        style={isActive ? { '--tw-ring-color': cfg.badgeBg.replace('bg-[', '').replace(']', '') } as React.CSSProperties : undefined}
+                      >
                         <div className="flex items-center gap-2">
                           <span className={`${cfg.badgeBg} text-white text-xs px-1.5 py-0.5 rounded font-semibold`}>{cfg.abbr}</span>
                           <span className="text-xs text-gray-700">{cfg.label}</span>
                         </div>
-                        <span className={`text-xs font-medium ${isPosted ? 'text-green-600' : 'text-gray-400'}`}>
-                          {isPosted ? (platform === 'google_business' && selectedPost.google_posted_at ? '✓ Auto-posted' : '✓ Published') : 'Pending'}
-                        </span>
-                      </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-xs font-medium ${isPosted ? 'text-green-600' : 'text-gray-400'}`}>
+                            {isPosted ? (platform === 'google_business' && selectedPost.google_posted_at ? '✓ Auto-posted' : '✓ Published') : 'Pending'}
+                          </span>
+                          {isActive && <span className="text-xs text-gray-400">▾</span>}
+                        </div>
+                      </button>
                     )
                   })}
                 </div>
               </div>
 
-              {/* Caption preview */}
+              {/* Caption for selected platform */}
               <div>
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Instagram Caption</div>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600 leading-relaxed max-h-24 overflow-hidden relative">
-                  {(selectedPost.captions as SocialCaptions).instagram}
-                  <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-gray-50" />
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                  {PLATFORM_CONFIG[selectedPlatform].label} Caption
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600 leading-relaxed max-h-32 overflow-y-auto">
+                  {(selectedPost.captions as unknown as Record<string, string>)[selectedPlatform] || (
+                    <span className="text-gray-400 italic">No caption available for this platform</span>
+                  )}
                 </div>
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText((selectedPost.captions as SocialCaptions).instagram)
-                    toast.success('Caption copied')
+                    const cap = (selectedPost.captions as unknown as Record<string, string>)[selectedPlatform] ?? ''
+                    navigator.clipboard.writeText(cap)
+                    toast.success(`${PLATFORM_CONFIG[selectedPlatform].label} caption copied`)
                   }}
                   className="text-xs text-blue-600 mt-1 flex items-center gap-1 hover:underline"
                 >
