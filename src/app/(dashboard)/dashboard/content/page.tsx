@@ -20,6 +20,7 @@ import {
   fetchWeekendPost,
   generatePostImage,
   regenerateWeeklyCaption,
+  getScheduledCountForDate,
   scheduleReadyPost,
   publishReadyPost,
   getGoogleConnectionStatus,
@@ -151,6 +152,7 @@ export default function ContentStudioPage() {
   const [scheduled, setScheduled] = useState<Record<string, string>>({})
   const [googlePublishing, setGooglePublishing] = useState<Record<string, boolean>>({})
   const [googlePosted, setGooglePosted] = useState<Record<string, boolean>>({})
+  const [scheduleConflict, setScheduleConflict] = useState<Record<string, number>>({})
 
   // Create tab state
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null)
@@ -300,6 +302,14 @@ export default function ContentStudioPage() {
   }
 
   // ---- Schedule + Publish ----
+
+  const handleDateChange = async (cardId: string, date: string) => {
+    setScheduleDate(prev => ({ ...prev, [cardId]: date }))
+    setScheduleConflict(prev => ({ ...prev, [cardId]: 0 }))
+    if (!date) return
+    const { count } = await getScheduledCountForDate(date)
+    setScheduleConflict(prev => ({ ...prev, [cardId]: count }))
+  }
 
   const handleSchedule = async (
     cardId: string,
@@ -902,12 +912,17 @@ export default function ContentStudioPage() {
                                     <Check size={11} /> Scheduled for {isScheduled}
                                   </span>
                                 ) : scheduleOpen[platCardId] ? (
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <input type="date" min={todayISO}
                                       value={scheduleDate[platCardId] ?? todayISO}
-                                      onChange={e => setScheduleDate(prev => ({ ...prev, [platCardId]: e.target.value }))}
+                                      onChange={e => handleDateChange(platCardId, e.target.value)}
                                       className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
                                     />
+                                    {(scheduleConflict[platCardId] ?? 0) > 0 && (
+                                      <span className="flex items-center gap-1 text-xs text-amber-600 font-medium px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                                        ⚠️ {scheduleConflict[platCardId]} post{scheduleConflict[platCardId] > 1 ? 's' : ''} already on this date
+                                      </span>
+                                    )}
                                     <button
                                       onClick={() => handleSchedule(platCardId, { templateType: wp.templateType, promptData: wp.promptData, captions: allCaptions, imageUrl: platImgUrl })}
                                       disabled={scheduling[platCardId]}
@@ -1104,9 +1119,14 @@ export default function ContentStudioPage() {
                         <>
                           <input type="date" min={todayISO}
                             value={scheduleDate[post.id] ?? todayISO}
-                            onChange={e => setScheduleDate(prev => ({ ...prev, [post.id]: e.target.value }))}
+                            onChange={e => handleDateChange(post.id, e.target.value)}
                             className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
                           />
+                          {(scheduleConflict[post.id] ?? 0) > 0 && (
+                            <span className="flex items-center gap-1 text-xs text-amber-600 font-medium px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                              ⚠️ {scheduleConflict[post.id]} post{scheduleConflict[post.id] > 1 ? 's' : ''} already on this date
+                            </span>
+                          )}
                           <button
                             onClick={() => handleSchedule(post.id, { templateType: post.template_type, promptData: post.prompt_data as Record<string, string>, captions: captions as Record<SocialPlatform, string>, imageUrl: post.image_url })}
                             disabled={scheduling[post.id]}

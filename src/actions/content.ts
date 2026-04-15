@@ -561,6 +561,20 @@ export async function fetchMyPosts(): Promise<{ posts: ContentPost[]; error?: st
   }
 }
 
+// ---- Check schedule conflicts for a date ----
+
+export async function getScheduledCountForDate(date: string): Promise<{ count: number; error?: string }> {
+  const { user, account, supabase } = await getAccountAndUser()
+  if (!user || !account) return { count: 0 }
+  const { count } = await supabase
+    .from('content_posts')
+    .select('id', { count: 'exact', head: true })
+    .eq('account_id', account.id)
+    .eq('scheduled_date', date)
+    .eq('status', 'scheduled')
+  return { count: count ?? 0 }
+}
+
 // ---- Get Calendar Posts ----
 
 export async function getCalendarPosts(
