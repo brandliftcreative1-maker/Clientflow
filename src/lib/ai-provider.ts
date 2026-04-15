@@ -235,6 +235,103 @@ Respond with valid JSON only:
 }
 
 // ---------------------------------------------------------------------------
+// ReadyPost — fully-written post with captions ready to copy
+// ---------------------------------------------------------------------------
+
+export interface ReadyPost {
+  category: 'timely' | 'trust' | 'action'
+  categoryLabel: string
+  categoryEmoji: string
+  headline: string
+  reason: string
+  templateType: SocialTemplateType
+  promptData: Record<string, string>
+  tone: string
+  captions: SocialCaptions
+}
+
+// ---------------------------------------------------------------------------
+// getReadyToPostContent — 3 fully-written posts, one per strategic category
+// ---------------------------------------------------------------------------
+
+export async function getReadyToPostContent(params: {
+  businessName: string
+  industry: string
+  description: string | null
+  brandVoice: string
+}): Promise<ReadyPost[]> {
+  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
+  const prompt = `You are an expert social media strategist for small service businesses. Today is ${today}.
+
+Business: ${params.businessName}
+Industry: ${params.industry}
+Description: ${params.description ?? 'A local service business'}
+Brand voice: ${params.brandVoice}
+
+Generate exactly 3 ready-to-post social media recommendations. Each must be a DIFFERENT strategic category:
+1. TIMELY — tap into the current season, upcoming holiday, or a timely topic relevant to this industry right now
+2. TRUST — build credibility (a specific customer win, demonstration of expertise, or authentic behind-the-scenes)
+3. ACTION — drive bookings or inquiries (specific offer, clear urgency, direct call to action)
+
+Rules:
+- Be SPECIFIC to this business — no generic filler. Write as if you know this business personally.
+- Each post must be COMPLETE and READY TO COPY — not a template, an actual post.
+- Captions must sound natural, not marketing-speak.
+
+For each post write all three platform captions:
+- instagram: conversational tone, relevant emojis, 5-8 hashtags at end, 150-250 chars body
+- facebook: warm and conversational, 1-2 emojis max, no hashtags, 150-280 chars
+- google_business: short, direct, professional, no emojis, no hashtags, 80-140 chars
+
+Respond with valid JSON only:
+{
+  "posts": [
+    {
+      "category": "timely",
+      "categoryLabel": "Trending This Week",
+      "categoryEmoji": "🔥",
+      "headline": "6-8 word catchy headline for this post",
+      "reason": "One compelling sentence explaining why this post will perform well right now — be specific.",
+      "templateType": "seasonal|promotion|tip|customer_spotlight|behind_scenes|about_business|custom",
+      "tone": "Friendly|Professional|Exciting|Inspirational|Humorous|Urgent",
+      "promptData": { "relevant_key": "specific detail about this post" },
+      "captions": {
+        "instagram": "full ready-to-post instagram caption including hashtags",
+        "facebook": "full ready-to-post facebook caption",
+        "google_business": "short ready-to-post google business text"
+      }
+    },
+    {
+      "category": "trust",
+      "categoryLabel": "Build Credibility",
+      "categoryEmoji": "⭐",
+      "headline": "...",
+      "reason": "...",
+      "templateType": "...",
+      "tone": "...",
+      "promptData": {},
+      "captions": { "instagram": "...", "facebook": "...", "google_business": "..." }
+    },
+    {
+      "category": "action",
+      "categoryLabel": "Drive Business",
+      "categoryEmoji": "🚀",
+      "headline": "...",
+      "reason": "...",
+      "templateType": "...",
+      "tone": "...",
+      "promptData": {},
+      "captions": { "instagram": "...", "facebook": "...", "google_business": "..." }
+    }
+  ]
+}`
+
+  const result = await callGroqWithJSON<{ posts: ReadyPost[] }>(prompt)
+  return result.posts ?? []
+}
+
+// ---------------------------------------------------------------------------
 // generateSocialCaptions — all three platforms in one call
 // ---------------------------------------------------------------------------
 

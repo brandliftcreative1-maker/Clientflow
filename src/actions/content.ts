@@ -6,13 +6,15 @@ import {
   generateSocialImage,
   regeneratePlatformCaption,
   getPostRecommendations,
+  getReadyToPostContent,
   type SocialCaptions,
   type SocialPlatform,
   type SocialTemplateType,
   type PostRecommendation,
+  type ReadyPost,
 } from '@/lib/ai-provider'
 
-export type { PostRecommendation }
+export type { PostRecommendation, ReadyPost }
 
 // ---- Helpers ----
 
@@ -71,6 +73,25 @@ export async function fetchRecommendations(): Promise<{ recommendations: PostRec
     return { recommendations }
   } catch (err) {
     return { recommendations: [], error: err instanceof Error ? err.message : 'Failed to generate recommendations' }
+  }
+}
+
+// ---- Ready-to-Post Content (3 fully-written posts) ----
+
+export async function fetchReadyContent(): Promise<{ posts: ReadyPost[]; error?: string }> {
+  const { user, account } = await getAccountAndUser()
+  if (!user || !account) return { posts: [], error: 'Not authenticated' }
+
+  try {
+    const posts = await getReadyToPostContent({
+      businessName: account.business_name,
+      industry: account.industry,
+      description: (account as { description?: string | null }).description ?? null,
+      brandVoice: account.brand_voice,
+    })
+    return { posts }
+  } catch (err) {
+    return { posts: [], error: err instanceof Error ? err.message : 'Failed to generate recommendations' }
   }
 }
 

@@ -15,9 +15,9 @@ import {
   regenerateImageDirect,
   savePost,
   publishPost,
-  fetchRecommendations,
+  fetchReadyContent,
   type ContentPost,
-  type PostRecommendation,
+  type ReadyPost,
 } from '@/actions/content'
 import type { SocialPlatform } from '@/lib/ai-provider'
 
@@ -88,8 +88,11 @@ export default function ContentStudioPage() {
   const dateParam = searchParams.get('date')
 
   const [activeTab, setActiveTab] = useState<'recommended' | 'create'>('recommended')
-  const [recommendations, setRecommendations] = useState<PostRecommendation[]>([])
+  const [readyPosts, setReadyPosts] = useState<ReadyPost[]>([])
   const [loadingRecs, setLoadingRecs] = useState(true)
+  const [cardPlatform, setCardPlatform] = useState<Record<number, SocialPlatform>>({ 0: 'instagram', 1: 'instagram', 2: 'instagram' })
+  const [cardCopied, setCardCopied] = useState<{ index: number; platform: SocialPlatform } | null>(null)
+  const [editedCaptions, setEditedCaptions] = useState<Record<number, Record<SocialPlatform, string>>>({})
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null)
   const [tone, setTone] = useState<string>('Friendly')
   const [customTone, setCustomTone] = useState('')
@@ -105,29 +108,44 @@ export default function ContentStudioPage() {
   const [publishing, setPublishing] = useState(false)
 
   useEffect(() => {
-    fetchRecommendations().then(result => {
-      if (result.recommendations.length > 0) setRecommendations(result.recommendations)
+    fetchReadyContent().then(result => {
+      if (result.posts.length > 0) {
+        setReadyPosts(result.posts)
+        const initial: Record<number, Record<SocialPlatform, string>> = {}
+        result.posts.forEach((p, i) => { initial[i] = { ...p.captions } })
+        setEditedCaptions(initial)
+      }
       setLoadingRecs(false)
     })
   }, [])
 
-  const handleUseRecommendation = (rec: PostRecommendation) => {
-    setSelectedTemplate(rec.templateType as TemplateType)
-    setFormData(rec.promptData)
-    setTone(rec.suggestedTone)
+  const handleUseReadyPost = (post: ReadyPost) => {
+    setSelectedTemplate(post.templateType as TemplateType)
+    setFormData(post.promptData)
+    setTone(post.tone)
     setActiveTab('create')
-    setTimeout(() => {
-      document.getElementById('generate-form')?.scrollIntoView({ behavior: 'smooth' })
-    }, 100)
   }
 
   const handleRefreshRecommendations = async () => {
     setLoadingRecs(true)
-    setRecommendations([])
-    const result = await fetchRecommendations()
+    setReadyPosts([])
+    setEditedCaptions({})
+    const result = await fetchReadyContent()
     if (result.error) toast.error(result.error)
-    else setRecommendations(result.recommendations)
+    else {
+      setReadyPosts(result.posts)
+      const initial: Record<number, Record<SocialPlatform, string>> = {}
+      result.posts.forEach((p, i) => { initial[i] = { ...p.captions } })
+      setEditedCaptions(initial)
+    }
     setLoadingRecs(false)
+  }
+
+  const handleCardCopy = async (index: number, platform: SocialPlatform) => {
+    const text = editedCaptions[index]?.[platform] ?? ''
+    await navigator.clipboard.writeText(text)
+    setCardCopied({ index, platform })
+    setTimeout(() => setCardCopied(null), 2000)
   }
 
   const handleGenerate = async () => {
@@ -249,57 +267,152 @@ export default function ContentStudioPage() {
       {/* Recommended Tab */}
       {activeTab === 'recommended' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          {/* Section header */}
+          <div className="flex items-start justify-between mb-6">
             <div>
-              <p className="text-sm text-gray-500">Post ideas tailored to your business — click any to generate the full post instantly.</p>
+              <h2 className="text-base font-semibold text-gray-900">Your top 3 posts this week</h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Fully written and ready to copy — our AI picks what will perform best for your business.
+              </p>
             </div>
             <button
               onClick={handleRefreshRecommendations}
               disabled={loadingRecs}
-              className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 whitespace-nowrap mt-1"
             >
               {loadingRecs ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              Refresh ideas
+              New picks
             </button>
           </div>
 
           {loadingRecs ? (
-            <div className="grid grid-cols-2 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="border border-gray-200 rounded-xl p-4 animate-pulse">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-gray-200 rounded-lg" />
-                    <div className="h-4 bg-gray-200 rounded w-24" />
+            <div className="flex flex-col gap-5">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="border border-gray-200 rounded-2xl p-5 animate-pulse">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-24 h-6 bg-gray-200 rounded-full" />
+                    <div className="h-5 bg-gray-200 rounded w-48" />
                   </div>
-                  <div className="h-4 bg-gray-200 rounded w-full mb-2" />
-                  <div className="h-3 bg-gray-100 rounded w-3/4" />
+                  <div className="h-10 bg-gray-100 rounded-lg mb-4 w-full" />
+                  <div className="flex gap-2 mb-3">
+                    <div className="h-8 w-16 bg-gray-200 rounded-lg" />
+                    <div className="h-8 w-16 bg-gray-200 rounded-lg" />
+                    <div className="h-8 w-24 bg-gray-200 rounded-lg" />
+                  </div>
+                  <div className="h-24 bg-gray-100 rounded-lg" />
                 </div>
               ))}
+              <p className="text-xs text-center text-gray-400 -mt-2">Writing your posts… this takes about 10 seconds</p>
+            </div>
+          ) : readyPosts.length === 0 ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-10 text-center">
+              <p className="text-gray-500 text-sm mb-3">Couldn&apos;t load recommendations right now.</p>
+              <button onClick={handleRefreshRecommendations} className="text-sm text-blue-600 hover:underline">Try again</button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {recommendations.map((rec, i) => (
-                <div key={i} className="border border-gray-200 rounded-xl p-4 bg-white hover:border-blue-300 hover:shadow-sm transition-all group">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">{rec.emoji}</span>
-                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                        {TEMPLATES.find(t => t.type === rec.templateType)?.label ?? rec.templateType}
-                      </span>
+            <div className="flex flex-col gap-5">
+              {readyPosts.map((rp, i) => {
+                const categoryStyles = {
+                  timely: { bar: 'bg-amber-500', badge: 'bg-amber-50 text-amber-700 border-amber-200', border: 'border-amber-200', accent: 'text-amber-600 bg-amber-50' },
+                  trust:  { bar: 'bg-blue-500',  badge: 'bg-blue-50 text-blue-700 border-blue-200',   border: 'border-blue-200',  accent: 'text-blue-600 bg-blue-50'  },
+                  action: { bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', border: 'border-emerald-200', accent: 'text-emerald-700 bg-emerald-50' },
+                }
+                const style = categoryStyles[rp.category] ?? categoryStyles.timely
+                const activePlatform = cardPlatform[i] ?? 'instagram'
+                const caption = editedCaptions[i]?.[activePlatform] ?? rp.captions[activePlatform]
+                const isCopied = cardCopied?.index === i && cardCopied.platform === activePlatform
+
+                const platformTabs: { key: SocialPlatform; label: string; abbr: string; color: string }[] = [
+                  { key: 'instagram', label: 'Instagram', abbr: 'IG', color: 'bg-[#e1306c]' },
+                  { key: 'facebook', label: 'Facebook', abbr: 'FB', color: 'bg-[#1877f2]' },
+                  { key: 'google_business', label: 'Google Business', abbr: 'G', color: 'bg-[#f97316]' },
+                ]
+
+                return (
+                  <div key={i} className={`border rounded-2xl overflow-hidden bg-white ${style.border}`}>
+                    {/* Colored top bar */}
+                    <div className={`h-1 ${style.bar}`} />
+
+                    <div className="p-5">
+                      {/* Card header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${style.badge}`}>
+                            {rp.categoryEmoji} {rp.categoryLabel}
+                          </span>
+                          <h3 className="text-sm font-semibold text-gray-900">{rp.headline}</h3>
+                        </div>
+                        <span className="text-xs text-gray-400 whitespace-nowrap ml-2">{rp.tone}</span>
+                      </div>
+
+                      {/* Why it works */}
+                      <p className={`text-xs rounded-lg px-3 py-2 mb-4 leading-relaxed ${style.accent}`}>
+                        💡 {rp.reason}
+                      </p>
+
+                      {/* Platform tabs */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-xs text-gray-400 mr-1">Platform:</span>
+                        {platformTabs.map(pt => (
+                          <button
+                            key={pt.key}
+                            onClick={() => setCardPlatform(prev => ({ ...prev, [i]: pt.key }))}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                              activePlatform === pt.key
+                                ? `${pt.color} text-white shadow-sm`
+                                : 'border border-gray-200 text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pt.abbr}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Caption text (editable) */}
+                      <div className="relative">
+                        <Textarea
+                          value={caption}
+                          onChange={e => setEditedCaptions(prev => ({
+                            ...prev,
+                            [i]: { ...(prev[i] ?? rp.captions), [activePlatform]: e.target.value }
+                          }))}
+                          rows={activePlatform === 'google_business' ? 3 : 5}
+                          className="text-sm text-gray-700 leading-relaxed resize-none bg-gray-50 border-gray-200 pr-4"
+                        />
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-xs text-gray-400">{caption.length} chars</span>
+                          <button
+                            onClick={() => handleCardCopy(i, activePlatform)}
+                            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
+                              isCopied
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-900 text-white hover:bg-gray-700'
+                            }`}
+                          >
+                            {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                            {isCopied ? 'Copied!' : `Copy ${platformTabs.find(p => p.key === activePlatform)?.label}`}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Footer actions */}
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                        <span className="text-xs text-gray-400">
+                          {TEMPLATES.find(t => t.type === rp.templateType)?.emoji}{' '}
+                          {TEMPLATES.find(t => t.type === rp.templateType)?.label}
+                        </span>
+                        <button
+                          onClick={() => handleUseReadyPost(rp)}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                        >
+                          <PenLine size={11} />
+                          Customize &amp; add image →
+                        </button>
+                      </div>
                     </div>
-                    <span className="text-xs text-blue-500 font-medium">{rec.suggestedTone}</span>
                   </div>
-                  <p className="text-sm font-semibold text-gray-900 mb-1">{rec.headline}</p>
-                  <p className="text-xs text-gray-500 mb-2 leading-relaxed">{rec.description}</p>
-                  <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-2 py-1 mb-3">💡 {rec.reason}</p>
-                  <button
-                    onClick={() => handleUseRecommendation(rec)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-2 rounded-lg transition-colors"
-                  >
-                    ✨ Generate this post
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
