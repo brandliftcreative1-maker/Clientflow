@@ -16,9 +16,11 @@ import {
   savePost,
   publishPost,
   fetchReadyContent,
+  fetchWeeklyContent,
   generatePostImage,
   type ContentPost,
   type ReadyPost,
+  type WeeklyPost,
 } from '@/actions/content'
 import type { SocialPlatform } from '@/lib/ai-provider'
 
@@ -89,8 +91,20 @@ export default function ContentStudioPage() {
   const dateParam = searchParams.get('date')
 
   const [activeTab, setActiveTab] = useState<'recommended' | 'create'>('recommended')
+  const [recView, setRecView] = useState<'picks' | 'week'>('picks')
   const [readyPosts, setReadyPosts] = useState<ReadyPost[]>([])
   const [loadingRecs, setLoadingRecs] = useState(true)
+  const [weeklyPosts, setWeeklyPosts] = useState<WeeklyPost[]>([])
+  const [loadingWeekly, setLoadingWeekly] = useState(false)
+  const [weeklyLoaded, setWeeklyLoaded] = useState(false)
+  const [selectedDay, setSelectedDay] = useState<WeeklyPost['day']>('monday')
+  const [weeklyImages, setWeeklyImages] = useState<Record<string, string | null>>({})
+  const [weeklyImgLoading, setWeeklyImgLoading] = useState<Record<string, boolean>>({})
+  const [weeklyImgError, setWeeklyImgError] = useState<Record<string, boolean>>({})
+  const [weeklyImgRetries, setWeeklyImgRetries] = useState<Record<string, number>>({})
+  const [weeklyPlatform, setWeeklyPlatform] = useState<Record<string, SocialPlatform>>({})
+  const [weeklyCaptions, setWeeklyCaptions] = useState<Record<string, Record<SocialPlatform, string>>>({})
+  const [weeklyCopied, setWeeklyCopied] = useState<{ day: string; platform: SocialPlatform } | null>(null)
   const [cardPlatform, setCardPlatform] = useState<Record<number, SocialPlatform>>({ 0: 'instagram', 1: 'instagram', 2: 'instagram' })
   const [cardCopied, setCardCopied] = useState<{ index: number; platform: SocialPlatform } | null>(null)
   const [editedCaptions, setEditedCaptions] = useState<Record<number, Record<SocialPlatform, string>>>({})
@@ -201,6 +215,68 @@ export default function ContentStudioPage() {
     setCardImages(prev => ({ ...prev, [i]: url }))
     setCardImageLoading(prev => ({ ...prev, [i]: true }))
     setCardImageError(prev => ({ ...prev, [i]: false }))
+  }
+
+  const loadWeeklyContent = async () => {
+    setLoadingWeekly(true)
+    const result = await fetchWeeklyContent()
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      setWeeklyPosts(result.posts)
+      const imgs: Record<string, string | null> = {}
+      const imgLoad: Record<string, boolean> = {}
+      const caps: Record<string, Record<SocialPlatform, string>> = {}
+      const plat: Record<string, SocialPlatform> = {}
+      result.posts.forEach(p => {
+        imgs[p.day] = p.imageUrl ?? null
+        imgLoad[p.day] = !!p.imageUrl
+        caps[p.day] = { ...p.captions }
+        plat[p.day] = 'instagram'
+      })
+      setWeeklyImages(imgs)
+      setWeeklyImgLoading(imgLoad)
+      setWeeklyCaptions(caps)
+      setWeeklyPlatform(plat)
+      setWeeklyImgError({})
+      setWeeklyImgRetries({})
+      if (result.posts.length > 0) setSelectedDay(result.posts[0].day)
+      setWeeklyLoaded(true)
+    }
+    setLoadingWeekly(false)
+  }
+
+  const handleWeeklyNewImage = async (day: WeeklyPost['day'], post: WeeklyPost) => {
+    setWeeklyImgLoading(prev => ({ ...prev, [day]: true }))
+    setWeeklyImgError(prev => ({ ...prev, [day]: false }))
+    setWeeklyImgRetries(prev => ({ ...prev, [day]: 0 }))
+    const result = await generatePostImage(post.templateType, post.promptData)
+    if (result.error) {
+      toast.error(result.error)
+      setWeeklyImgLoading(prev => ({ ...prev, [day]: false }))
+    } else {
+      setWeeklyImages(prev => ({ ...prev, [day]: result.imageUrl }))
+      setWeeklyImgLoading(prev => ({ ...prev, [day]: !!result.imageUrl }))
+    }
+  }
+
+  const handleWeeklyImageError = (day: WeeklyPost['day'], post: WeeklyPost) => {
+    const retries = weeklyImgRetries[day] ?? 0
+    setWeeklyImgLoading(prev => ({ ...prev, [day]: false }))
+    if (retries < 2) {
+      setWeeklyImgRetries(prev => ({ ...prev, [day]: retries + 1 }))
+      setWeeklyImgLoading(prev => ({ ...prev, [day]: true }))
+      setTimeout(() => handleWeeklyNewImage(day, post), 1500)
+    } else {
+      setWeeklyImgError(prev => ({ ...prev, [day]: true }))
+    }
+  }
+
+  const handleWeeklyCopy = async (day: string, platform: SocialPlatform) => {
+    const text = weeklyCaptions[day]?.[platform] ?? ''
+    await navigator.clipboard.writeText(text)
+    setWeeklyCopied({ day, platform })
+    setTimeout(() => setWeeklyCopied(null), 2000)
   }
 
   const handleCardCopy = async (index: number, platform: SocialPlatform) => {
@@ -329,25 +405,45 @@ export default function ContentStudioPage() {
       {/* Recommended Tab */}
       {activeTab === 'recommended' && (
         <div>
-          {/* Section header */}
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <h2 className="text-base font-semibold text-gray-900">Your top 3 posts this week</h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Fully written and ready to copy — our AI picks what will perform best for your business.
-              </p>
+          {/* Sub-view toggle + action */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+              <button
+                onClick={() => setRecView('picks')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${recView === 'picks' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                ✨ Top Picks
+              </button>
+              <button
+                onClick={() => { setRecView('week'); if (!weeklyLoaded && !loadingWeekly) loadWeeklyContent() }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${recView === 'week' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                📅 This Week
+              </button>
             </div>
-            <button
-              onClick={handleRefreshRecommendations}
-              disabled={loadingRecs}
-              className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 whitespace-nowrap mt-1"
-            >
-              {loadingRecs ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              New picks
-            </button>
+            {recView === 'picks' && (
+              <button
+                onClick={handleRefreshRecommendations}
+                disabled={loadingRecs}
+                className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+              >
+                {loadingRecs ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                New picks
+              </button>
+            )}
+            {recView === 'week' && weeklyLoaded && (
+              <button
+                onClick={() => { setWeeklyLoaded(false); loadWeeklyContent() }}
+                disabled={loadingWeekly}
+                className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+              >
+                {loadingWeekly ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Refresh plan
+              </button>
+            )}
           </div>
 
-          {loadingRecs ? (
+          {recView === 'picks' && loadingRecs ? (
             <div className="flex flex-col gap-5">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="border border-gray-200 rounded-2xl p-5 animate-pulse">
@@ -366,12 +462,12 @@ export default function ContentStudioPage() {
               ))}
               <p className="text-xs text-center text-gray-400 -mt-2">Writing your posts… this takes about 10 seconds</p>
             </div>
-          ) : readyPosts.length === 0 ? (
+          ) : recView === 'picks' && readyPosts.length === 0 ? (
             <div className="border-2 border-dashed border-gray-200 rounded-2xl p-10 text-center">
               <p className="text-gray-500 text-sm mb-3">Couldn&apos;t load recommendations right now.</p>
               <button onClick={handleRefreshRecommendations} className="text-sm text-blue-600 hover:underline">Try again</button>
             </div>
-          ) : (
+          ) : recView === 'picks' ? (
             <div className="flex flex-col gap-5">
               {readyPosts.map((rp, i) => {
                 const categoryStyles = {
@@ -514,19 +610,221 @@ export default function ContentStudioPage() {
                             {TEMPLATES.find(t => t.type === rp.templateType)?.emoji}{' '}
                             {TEMPLATES.find(t => t.type === rp.templateType)?.label}
                           </span>
-                          <button
-                            onClick={() => handleUseReadyPost(rp)}
-                            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                          >
-                            <PenLine size={11} />
-                            Customize &amp; edit →
-                          </button>
+                          <span className="text-xs text-gray-400 flex items-center gap-1">
+                            <PenLine size={10} />
+                            Click caption to edit
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
                 )
               })}
+            </div>
+          ) : null}
+
+          {/* ── This Week view ── */}
+          {recView === 'week' && (
+            <div>
+              {loadingWeekly ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <Loader2 size={28} className="animate-spin text-blue-400" />
+                  <p className="text-sm text-gray-500">Building your week's content plan…</p>
+                  <p className="text-xs text-gray-400">This takes about 15 seconds</p>
+                </div>
+              ) : !weeklyLoaded ? (
+                <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
+                  <p className="text-2xl mb-3">📅</p>
+                  <p className="text-sm font-medium text-gray-700 mb-1">Your strategic weekly content plan</p>
+                  <p className="text-xs text-gray-500 mb-5">5 posts across Monday–Friday, each with a different strategic purpose</p>
+                  <button onClick={loadWeeklyContent} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors">
+                    Generate this week&apos;s plan
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  {/* Day selector strip */}
+                  <div className="grid grid-cols-5 gap-2 mb-6">
+                    {weeklyPosts.map(wp => {
+                      const isSelected = selectedDay === wp.day
+                      const pillarColors: Record<string, string> = {
+                        monday:    'border-violet-300 bg-violet-50',
+                        tuesday:   'border-amber-300 bg-amber-50',
+                        wednesday: 'border-sky-300 bg-sky-50',
+                        thursday:  'border-emerald-300 bg-emerald-50',
+                        friday:    'border-rose-300 bg-rose-50',
+                      }
+                      const selectedColors: Record<string, string> = {
+                        monday:    'border-violet-400 bg-violet-600 text-white shadow-lg shadow-violet-100',
+                        tuesday:   'border-amber-400 bg-amber-500 text-white shadow-lg shadow-amber-100',
+                        wednesday: 'border-sky-400 bg-sky-600 text-white shadow-lg shadow-sky-100',
+                        thursday:  'border-emerald-400 bg-emerald-600 text-white shadow-lg shadow-emerald-100',
+                        friday:    'border-rose-400 bg-rose-500 text-white shadow-lg shadow-rose-100',
+                      }
+                      return (
+                        <button
+                          key={wp.day}
+                          onClick={() => setSelectedDay(wp.day)}
+                          className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                            isSelected ? selectedColors[wp.day] : `${pillarColors[wp.day]} hover:opacity-80`
+                          }`}
+                        >
+                          <span className="text-lg">{wp.pillarEmoji}</span>
+                          <span className={`text-xs font-bold uppercase tracking-wide ${isSelected ? 'text-white' : 'text-gray-700'}`}>
+                            {wp.dayLabel.slice(0, 3)}
+                          </span>
+                          <span className={`text-xs leading-tight text-center ${isSelected ? 'text-white/90' : 'text-gray-500'}`}>
+                            {wp.pillar}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Selected day's full post */}
+                  {weeklyPosts.filter(wp => wp.day === selectedDay).map(wp => {
+                    const imgUrl = weeklyImages[wp.day] ?? null
+                    const imgLoading = weeklyImgLoading[wp.day] ?? false
+                    const imgError = weeklyImgError[wp.day] ?? false
+                    const activePlatform = weeklyPlatform[wp.day] ?? 'instagram'
+                    const caption = weeklyCaptions[wp.day]?.[activePlatform] ?? wp.captions[activePlatform]
+                    const isCopied = weeklyCopied?.day === wp.day && weeklyCopied.platform === activePlatform
+                    const dayColors: Record<string, { bar: string; badge: string; accent: string }> = {
+                      monday:    { bar: 'bg-violet-500', badge: 'bg-violet-50 text-violet-700 border-violet-200', accent: 'text-violet-700 bg-violet-50' },
+                      tuesday:   { bar: 'bg-amber-500',  badge: 'bg-amber-50 text-amber-700 border-amber-200',   accent: 'text-amber-700 bg-amber-50'   },
+                      wednesday: { bar: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-200',         accent: 'text-sky-700 bg-sky-50'         },
+                      thursday:  { bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'text-emerald-700 bg-emerald-50' },
+                      friday:    { bar: 'bg-rose-500',   badge: 'bg-rose-50 text-rose-700 border-rose-200',      accent: 'text-rose-700 bg-rose-50'      },
+                    }
+                    const style = dayColors[wp.day] ?? dayColors.monday
+                    const platformTabs: { key: SocialPlatform; label: string; abbr: string; color: string }[] = [
+                      { key: 'instagram', label: 'Instagram', abbr: 'IG', color: 'bg-[#e1306c]' },
+                      { key: 'facebook', label: 'Facebook', abbr: 'FB', color: 'bg-[#1877f2]' },
+                      { key: 'google_business', label: 'Google Business', abbr: 'G', color: 'bg-[#f97316]' },
+                    ]
+                    return (
+                      <div key={wp.day} className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
+                        <div className={`h-1 ${style.bar}`} />
+                        <div className="flex">
+                          {/* Left: image */}
+                          <div className="w-52 flex-shrink-0 p-4 border-r border-gray-100 flex flex-col">
+                            <div className="aspect-square w-full rounded-xl overflow-hidden bg-gray-100 mb-3 relative">
+                              {imgUrl && !imgError ? (
+                                <>
+                                  {imgLoading && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gray-100 z-10">
+                                      <Loader2 size={20} className="animate-spin text-gray-400" />
+                                      <span className="text-xs text-gray-400">{(weeklyImgRetries[wp.day] ?? 0) > 0 ? 'Retrying…' : 'Generating…'}</span>
+                                    </div>
+                                  )}
+                                  <img
+                                    src={imgUrl}
+                                    alt="Post visual"
+                                    className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoading ? 'opacity-0' : 'opacity-100'}`}
+                                    onLoad={() => setWeeklyImgLoading(prev => ({ ...prev, [wp.day]: false }))}
+                                    onError={() => handleWeeklyImageError(wp.day, wp)}
+                                  />
+                                </>
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 p-3 text-center">
+                                  <span className="text-2xl">🖼️</span>
+                                  <span className="text-xs text-gray-400">{imgError ? 'Failed to load' : 'No image yet'}</span>
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleWeeklyNewImage(wp.day, wp)}
+                              disabled={imgLoading}
+                              className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 mb-2"
+                            >
+                              {imgLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                              New image
+                            </button>
+                            <label className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 cursor-pointer">
+                              <Download size={11} />
+                              Upload your own
+                              <input type="file" accept="image/*" className="hidden"
+                                onChange={e => {
+                                  const f = e.target.files?.[0]
+                                  if (f) {
+                                    const url = URL.createObjectURL(f)
+                                    setWeeklyImages(prev => ({ ...prev, [wp.day]: url }))
+                                    setWeeklyImgLoading(prev => ({ ...prev, [wp.day]: true }))
+                                    setWeeklyImgError(prev => ({ ...prev, [wp.day]: false }))
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+
+                          {/* Right: content */}
+                          <div className="flex-1 p-5">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${style.badge}`}>
+                                  {wp.pillarEmoji} {wp.dayLabel} · {wp.pillar}
+                                </span>
+                                <h3 className="text-sm font-semibold text-gray-900">{wp.headline}</h3>
+                              </div>
+                              <span className="text-xs text-gray-400 whitespace-nowrap ml-2 mt-0.5">{wp.tone}</span>
+                            </div>
+                            <p className={`text-xs rounded-lg px-3 py-2 mb-4 leading-relaxed ${style.accent}`}>
+                              💡 {wp.reason}
+                            </p>
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-xs text-gray-400 mr-1">Platform:</span>
+                              {platformTabs.map(pt => (
+                                <button
+                                  key={pt.key}
+                                  onClick={() => setWeeklyPlatform(prev => ({ ...prev, [wp.day]: pt.key }))}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                    activePlatform === pt.key
+                                      ? `${pt.color} text-white shadow-sm`
+                                      : 'border border-gray-200 text-gray-500 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {pt.abbr}
+                                </button>
+                              ))}
+                            </div>
+                            <Textarea
+                              value={caption}
+                              onChange={e => setWeeklyCaptions(prev => ({
+                                ...prev,
+                                [wp.day]: { ...(prev[wp.day] ?? wp.captions), [activePlatform]: e.target.value }
+                              }))}
+                              rows={activePlatform === 'google_business' ? 3 : 5}
+                              className="text-sm text-gray-700 leading-relaxed resize-none bg-gray-50 border-gray-200"
+                            />
+                            <div className="flex items-center justify-between mt-1.5">
+                              <span className="text-xs text-gray-400">{caption.length} chars</span>
+                              <button
+                                onClick={() => handleWeeklyCopy(wp.day, activePlatform)}
+                                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
+                                  isCopied ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-700'
+                                }`}
+                              >
+                                {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                                {isCopied ? 'Copied!' : `Copy ${platformTabs.find(p => p.key === activePlatform)?.label}`}
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                              <span className="text-xs text-gray-400">
+                                {TEMPLATES.find(t => t.type === wp.templateType)?.emoji}{' '}
+                                {TEMPLATES.find(t => t.type === wp.templateType)?.label}
+                              </span>
+                              <span className="text-xs text-gray-400 flex items-center gap-1">
+                                <PenLine size={10} />
+                                Click caption to edit
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

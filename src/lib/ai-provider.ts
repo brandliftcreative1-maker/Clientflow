@@ -235,6 +235,82 @@ Respond with valid JSON only:
 }
 
 // ---------------------------------------------------------------------------
+// WeeklyPost — one strategically-placed post per weekday
+// ---------------------------------------------------------------------------
+
+export interface WeeklyPost {
+  day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday'
+  dayLabel: string
+  pillar: string        // e.g. "Build Authority"
+  pillarEmoji: string
+  headline: string
+  reason: string
+  templateType: SocialTemplateType
+  promptData: Record<string, string>
+  tone: string
+  captions: SocialCaptions
+  imageUrl?: string | null
+}
+
+export async function getWeeklyContent(params: {
+  businessName: string
+  industry: string
+  description: string | null
+  brandVoice: string
+}): Promise<WeeklyPost[]> {
+  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
+  const prompt = `You are a strategic social media planner for small service businesses. Today is ${today}.
+
+Business: ${params.businessName}
+Industry: ${params.industry}
+Description: ${params.description ?? 'A local service business'}
+Brand voice: ${params.brandVoice}
+
+Create a 5-day social media content plan (Monday–Friday) where EACH DAY serves a different strategic purpose:
+- MONDAY — Educate & Inspire: a tip, insight, or educational piece that shows expertise
+- TUESDAY — Real Story: customer testimonial, review, or success story that builds social proof
+- WEDNESDAY — Behind the Scenes: authentic look at the business, team, or process
+- THURSDAY — Drive Action: a direct promotion, offer, or strong call to action
+- FRIDAY — Brand & Community: company story, values, or community connection
+
+Rules:
+- Make EVERY post specific to this business — not generic filler
+- Each caption should be complete and ready to copy
+- The 5 posts together should feel balanced and varied
+
+For each post write all three platform captions:
+- instagram: conversational, emojis, 5-8 hashtags at end, 150-250 chars body
+- facebook: warm and conversational, 1-2 emojis, no hashtags, 150-280 chars
+- google_business: short, direct, no emojis, no hashtags, 80-140 chars
+
+Respond with valid JSON only:
+{
+  "posts": [
+    {
+      "day": "monday",
+      "dayLabel": "Monday",
+      "pillar": "Build Authority",
+      "pillarEmoji": "💡",
+      "headline": "6-8 word headline",
+      "reason": "One sentence on why this post works for Monday.",
+      "templateType": "tip|customer_spotlight|behind_scenes|promotion|seasonal|about_business|custom",
+      "tone": "Friendly|Professional|Exciting|Inspirational|Humorous|Urgent",
+      "promptData": { "key": "value" },
+      "captions": {
+        "instagram": "full caption with hashtags",
+        "facebook": "full caption",
+        "google_business": "short text"
+      }
+    }
+  ]
+}`
+
+  const result = await callGroqWithJSON<{ posts: WeeklyPost[] }>(prompt)
+  return result.posts ?? []
+}
+
+// ---------------------------------------------------------------------------
 // ReadyPost — fully-written post with captions ready to copy
 // ---------------------------------------------------------------------------
 

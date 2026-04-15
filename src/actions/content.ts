@@ -7,14 +7,16 @@ import {
   regeneratePlatformCaption,
   getPostRecommendations,
   getReadyToPostContent,
+  getWeeklyContent,
   type SocialCaptions,
   type SocialPlatform,
   type SocialTemplateType,
   type PostRecommendation,
   type ReadyPost,
+  type WeeklyPost,
 } from '@/lib/ai-provider'
 
-export type { PostRecommendation, ReadyPost }
+export type { PostRecommendation, ReadyPost, WeeklyPost }
 
 // ---- Helpers ----
 
@@ -108,6 +110,40 @@ export async function fetchReadyContent(): Promise<{ posts: ReadyPost[]; error?:
     return { posts: withImages }
   } catch (err) {
     return { posts: [], error: err instanceof Error ? err.message : 'Failed to generate recommendations' }
+  }
+}
+
+// ---- Weekly Content (Mon–Fri strategic plan) ----
+
+export async function fetchWeeklyContent(): Promise<{ posts: WeeklyPost[]; error?: string }> {
+  const { user, account } = await getAccountAndUser()
+  if (!user || !account) return { posts: [], error: 'Not authenticated' }
+
+  try {
+    const posts = await getWeeklyContent({
+      businessName: account.business_name,
+      industry: account.industry,
+      description: (account as { description?: string | null }).description ?? null,
+      brandVoice: account.brand_voice,
+    })
+    const withImages = await Promise.all(
+      posts.map(async post => {
+        try {
+          const imageUrl = await generateSocialImage({
+            templateType: post.templateType,
+            promptData: post.promptData,
+            businessName: account.business_name,
+            primaryColor: account.primary_color,
+          })
+          return { ...post, imageUrl }
+        } catch {
+          return { ...post, imageUrl: null }
+        }
+      })
+    )
+    return { posts: withImages }
+  } catch (err) {
+    return { posts: [], error: err instanceof Error ? err.message : 'Failed to generate weekly plan' }
   }
 }
 
