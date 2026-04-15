@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import {
   savePost,
   publishPost,
   fetchReadyContent,
+  generatePostImage,
   type ContentPost,
   type ReadyPost,
 } from '@/actions/content'
@@ -93,6 +94,10 @@ export default function ContentStudioPage() {
   const [cardPlatform, setCardPlatform] = useState<Record<number, SocialPlatform>>({ 0: 'instagram', 1: 'instagram', 2: 'instagram' })
   const [cardCopied, setCardCopied] = useState<{ index: number; platform: SocialPlatform } | null>(null)
   const [editedCaptions, setEditedCaptions] = useState<Record<number, Record<SocialPlatform, string>>>({})
+  const [cardImages, setCardImages] = useState<Record<number, string | null>>({})
+  const [cardImageLoading, setCardImageLoading] = useState<Record<number, boolean>>({})
+  const [cardImageError, setCardImageError] = useState<Record<number, boolean>>({})
+  const uploadRefs = useRef<(HTMLInputElement | null)[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null)
   const [tone, setTone] = useState<string>('Friendly')
   const [customTone, setCustomTone] = useState('')
@@ -111,9 +116,18 @@ export default function ContentStudioPage() {
     fetchReadyContent().then(result => {
       if (result.posts.length > 0) {
         setReadyPosts(result.posts)
-        const initial: Record<number, Record<SocialPlatform, string>> = {}
-        result.posts.forEach((p, i) => { initial[i] = { ...p.captions } })
-        setEditedCaptions(initial)
+        const initialCaptions: Record<number, Record<SocialPlatform, string>> = {}
+        const initialImages: Record<number, string | null> = {}
+        const initialImgLoading: Record<number, boolean> = {}
+        result.posts.forEach((p, i) => {
+          initialCaptions[i] = { ...p.captions }
+          initialImages[i] = p.imageUrl ?? null
+          initialImgLoading[i] = !!p.imageUrl
+        })
+        setEditedCaptions(initialCaptions)
+        setCardImages(initialImages)
+        setCardImageLoading(initialImgLoading)
+        setCardImageError({})
       }
       setLoadingRecs(false)
     })
@@ -130,15 +144,47 @@ export default function ContentStudioPage() {
     setLoadingRecs(true)
     setReadyPosts([])
     setEditedCaptions({})
+    setCardImages({})
+    setCardImageLoading({})
+    setCardImageError({})
     const result = await fetchReadyContent()
     if (result.error) toast.error(result.error)
     else {
       setReadyPosts(result.posts)
-      const initial: Record<number, Record<SocialPlatform, string>> = {}
-      result.posts.forEach((p, i) => { initial[i] = { ...p.captions } })
-      setEditedCaptions(initial)
+      const initialCaptions: Record<number, Record<SocialPlatform, string>> = {}
+      const initialImages: Record<number, string | null> = {}
+      const initialImgLoading: Record<number, boolean> = {}
+      result.posts.forEach((p, i) => {
+        initialCaptions[i] = { ...p.captions }
+        initialImages[i] = p.imageUrl ?? null
+        initialImgLoading[i] = !!p.imageUrl
+      })
+      setEditedCaptions(initialCaptions)
+      setCardImages(initialImages)
+      setCardImageLoading(initialImgLoading)
+      setCardImageError({})
     }
     setLoadingRecs(false)
+  }
+
+  const handleCardNewImage = async (i: number, rp: ReadyPost) => {
+    setCardImageLoading(prev => ({ ...prev, [i]: true }))
+    setCardImageError(prev => ({ ...prev, [i]: false }))
+    const result = await generatePostImage(rp.templateType, rp.promptData)
+    if (result.error) {
+      toast.error(result.error)
+      setCardImageLoading(prev => ({ ...prev, [i]: false }))
+    } else {
+      setCardImages(prev => ({ ...prev, [i]: result.imageUrl }))
+      setCardImageLoading(prev => ({ ...prev, [i]: !!result.imageUrl }))
+    }
+  }
+
+  const handleCardUpload = (i: number, file: File) => {
+    const url = URL.createObjectURL(file)
+    setCardImages(prev => ({ ...prev, [i]: url }))
+    setCardImageLoading(prev => ({ ...prev, [i]: true }))
+    setCardImageError(prev => ({ ...prev, [i]: false }))
   }
 
   const handleCardCopy = async (index: number, platform: SocialPlatform) => {
@@ -328,48 +374,102 @@ export default function ContentStudioPage() {
                   { key: 'google_business', label: 'Google Business', abbr: 'G', color: 'bg-[#f97316]' },
                 ]
 
+                const imgUrl = cardImages[i] ?? null
+                const imgLoading = cardImageLoading[i] ?? false
+                const imgError = cardImageError[i] ?? false
+
                 return (
                   <div key={i} className={`border rounded-2xl overflow-hidden bg-white ${style.border}`}>
                     {/* Colored top bar */}
                     <div className={`h-1 ${style.bar}`} />
 
-                    <div className="p-5">
-                      {/* Card header */}
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${style.badge}`}>
-                            {rp.categoryEmoji} {rp.categoryLabel}
-                          </span>
-                          <h3 className="text-sm font-semibold text-gray-900">{rp.headline}</h3>
+                    <div className="flex">
+                      {/* Left: image panel */}
+                      <div className="w-52 flex-shrink-0 p-4 border-r border-gray-100 flex flex-col">
+                        {/* Image */}
+                        <div className="aspect-square w-full rounded-xl overflow-hidden bg-gray-100 mb-3 relative">
+                          {imgUrl && !imgError ? (
+                            <>
+                              {imgLoading && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gray-100 z-10">
+                                  <Loader2 size={20} className="animate-spin text-gray-400" />
+                                  <span className="text-xs text-gray-400">Generating…</span>
+                                </div>
+                              )}
+                              <img
+                                src={imgUrl}
+                                alt="Post visual"
+                                className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoading ? 'opacity-0' : 'opacity-100'}`}
+                                onLoad={() => setCardImageLoading(prev => ({ ...prev, [i]: false }))}
+                                onError={() => { setCardImageLoading(prev => ({ ...prev, [i]: false })); setCardImageError(prev => ({ ...prev, [i]: true })) }}
+                              />
+                            </>
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 p-3 text-center">
+                              <span className="text-2xl">🖼️</span>
+                              <span className="text-xs text-gray-400">{imgError ? 'Failed to load' : 'No image yet'}</span>
+                            </div>
+                          )}
                         </div>
-                        <span className="text-xs text-gray-400 whitespace-nowrap ml-2">{rp.tone}</span>
+                        {/* Image actions */}
+                        <button
+                          onClick={() => handleCardNewImage(i, rp)}
+                          disabled={imgLoading}
+                          className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 mb-2"
+                        >
+                          {imgLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                          New image
+                        </button>
+                        <label className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 cursor-pointer">
+                          <Download size={11} />
+                          Upload your own
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            ref={el => { uploadRefs.current[i] = el }}
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handleCardUpload(i, f) }}
+                          />
+                        </label>
                       </div>
 
-                      {/* Why it works */}
-                      <p className={`text-xs rounded-lg px-3 py-2 mb-4 leading-relaxed ${style.accent}`}>
-                        💡 {rp.reason}
-                      </p>
+                      {/* Right: content */}
+                      <div className="flex-1 p-5">
+                        {/* Card header */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${style.badge}`}>
+                              {rp.categoryEmoji} {rp.categoryLabel}
+                            </span>
+                            <h3 className="text-sm font-semibold text-gray-900">{rp.headline}</h3>
+                          </div>
+                          <span className="text-xs text-gray-400 whitespace-nowrap ml-2 mt-0.5">{rp.tone}</span>
+                        </div>
 
-                      {/* Platform tabs */}
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-xs text-gray-400 mr-1">Platform:</span>
-                        {platformTabs.map(pt => (
-                          <button
-                            key={pt.key}
-                            onClick={() => setCardPlatform(prev => ({ ...prev, [i]: pt.key }))}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                              activePlatform === pt.key
-                                ? `${pt.color} text-white shadow-sm`
-                                : 'border border-gray-200 text-gray-500 hover:bg-gray-50'
-                            }`}
-                          >
-                            {pt.abbr}
-                          </button>
-                        ))}
-                      </div>
+                        {/* Why it works */}
+                        <p className={`text-xs rounded-lg px-3 py-2 mb-4 leading-relaxed ${style.accent}`}>
+                          💡 {rp.reason}
+                        </p>
 
-                      {/* Caption text (editable) */}
-                      <div className="relative">
+                        {/* Platform tabs */}
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xs text-gray-400 mr-1">Platform:</span>
+                          {platformTabs.map(pt => (
+                            <button
+                              key={pt.key}
+                              onClick={() => setCardPlatform(prev => ({ ...prev, [i]: pt.key }))}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                activePlatform === pt.key
+                                  ? `${pt.color} text-white shadow-sm`
+                                  : 'border border-gray-200 text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              {pt.abbr}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Caption text (editable) */}
                         <Textarea
                           value={caption}
                           onChange={e => setEditedCaptions(prev => ({
@@ -377,37 +477,35 @@ export default function ContentStudioPage() {
                             [i]: { ...(prev[i] ?? rp.captions), [activePlatform]: e.target.value }
                           }))}
                           rows={activePlatform === 'google_business' ? 3 : 5}
-                          className="text-sm text-gray-700 leading-relaxed resize-none bg-gray-50 border-gray-200 pr-4"
+                          className="text-sm text-gray-700 leading-relaxed resize-none bg-gray-50 border-gray-200"
                         />
                         <div className="flex items-center justify-between mt-1.5">
                           <span className="text-xs text-gray-400">{caption.length} chars</span>
                           <button
                             onClick={() => handleCardCopy(i, activePlatform)}
                             className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                              isCopied
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-900 text-white hover:bg-gray-700'
+                              isCopied ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-700'
                             }`}
                           >
                             {isCopied ? <Check size={12} /> : <Copy size={12} />}
                             {isCopied ? 'Copied!' : `Copy ${platformTabs.find(p => p.key === activePlatform)?.label}`}
                           </button>
                         </div>
-                      </div>
 
-                      {/* Footer actions */}
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                        <span className="text-xs text-gray-400">
-                          {TEMPLATES.find(t => t.type === rp.templateType)?.emoji}{' '}
-                          {TEMPLATES.find(t => t.type === rp.templateType)?.label}
-                        </span>
-                        <button
-                          onClick={() => handleUseReadyPost(rp)}
-                          className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                        >
-                          <PenLine size={11} />
-                          Customize &amp; add image →
-                        </button>
+                        {/* Footer */}
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                          <span className="text-xs text-gray-400">
+                            {TEMPLATES.find(t => t.type === rp.templateType)?.emoji}{' '}
+                            {TEMPLATES.find(t => t.type === rp.templateType)?.label}
+                          </span>
+                          <button
+                            onClick={() => handleUseReadyPost(rp)}
+                            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                          >
+                            <PenLine size={11} />
+                            Customize &amp; edit →
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

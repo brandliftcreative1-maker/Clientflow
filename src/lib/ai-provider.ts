@@ -248,6 +248,7 @@ export interface ReadyPost {
   promptData: Record<string, string>
   tone: string
   captions: SocialCaptions
+  imageUrl?: string | null
 }
 
 // ---------------------------------------------------------------------------

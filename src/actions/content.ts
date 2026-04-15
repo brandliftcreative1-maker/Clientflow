@@ -89,9 +89,47 @@ export async function fetchReadyContent(): Promise<{ posts: ReadyPost[]; error?:
       description: (account as { description?: string | null }).description ?? null,
       brandVoice: account.brand_voice,
     })
-    return { posts }
+    // Generate image URLs in parallel (Pollinations — just URL construction, no API call)
+    const withImages = await Promise.all(
+      posts.map(async post => {
+        try {
+          const imageUrl = await generateSocialImage({
+            templateType: post.templateType,
+            promptData: post.promptData,
+            businessName: account.business_name,
+            primaryColor: account.primary_color,
+          })
+          return { ...post, imageUrl }
+        } catch {
+          return { ...post, imageUrl: null }
+        }
+      })
+    )
+    return { posts: withImages }
   } catch (err) {
     return { posts: [], error: err instanceof Error ? err.message : 'Failed to generate recommendations' }
+  }
+}
+
+// ---- Generate Image for Ready Post (no DB lookup needed) ----
+
+export async function generatePostImage(
+  templateType: string,
+  promptData: Record<string, string>
+): Promise<{ imageUrl: string | null; error?: string }> {
+  const { user, account } = await getAccountAndUser()
+  if (!user || !account) return { imageUrl: null, error: 'Not authenticated' }
+
+  try {
+    const imageUrl = await generateSocialImage({
+      templateType: templateType as import('@/lib/ai-provider').SocialTemplateType,
+      promptData,
+      businessName: account.business_name,
+      primaryColor: account.primary_color,
+    })
+    return { imageUrl }
+  } catch (err) {
+    return { imageUrl: null, error: err instanceof Error ? err.message : 'Image generation failed' }
   }
 }
 
