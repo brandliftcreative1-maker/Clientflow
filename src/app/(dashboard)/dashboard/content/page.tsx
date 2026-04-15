@@ -123,7 +123,6 @@ export default function ContentStudioPage() {
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
-  const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [postsPage, setPostsPage] = useState(1)
 
   const POSTS_PER_PAGE = 20
@@ -218,7 +217,6 @@ export default function ContentStudioPage() {
     setMyPostsFilter(f)
     setPostsPage(1)
     setSelectedPostIds(new Set())
-    setConfirmClearAll(false)
   }
 
   const handleBulkDelete = async () => {
@@ -231,21 +229,6 @@ export default function ContentStudioPage() {
       setSelectedPostIds(new Set())
       setPostsPage(1)
       toast.success(`Deleted ${deleted} post${deleted !== 1 ? 's' : ''}`)
-    }
-    setBulkDeleting(false)
-  }
-
-  const handleClearFilter = async () => {
-    setBulkDeleting(true)
-    const ids = filteredPosts.map(p => p.id)
-    const { deleted, error } = await bulkDeletePosts(ids)
-    if (error) toast.error(error)
-    else {
-      setMyPosts(prev => prev.filter(p => !ids.includes(p.id)))
-      setSelectedPostIds(new Set())
-      setPostsPage(1)
-      setConfirmClearAll(false)
-      toast.success(`Cleared ${deleted} ${myPostsFilter === 'all' ? '' : myPostsFilter + ' '}post${deleted !== 1 ? 's' : ''}`)
     }
     setBulkDeleting(false)
   }
@@ -616,24 +599,6 @@ export default function ContentStudioPage() {
                   Delete {selectedPostIds.size} selected
                 </button>
               )}
-              {/* Clear all for current filter */}
-              {filteredPosts.length > 0 && selectedPostIds.size === 0 && (
-                confirmClearAll ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Delete all {myPostsFilter === 'all' ? '' : myPostsFilter + ' '}posts?</span>
-                    <button onClick={handleClearFilter} disabled={bulkDeleting}
-                      className="text-xs font-medium px-2.5 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-60 flex items-center gap-1">
-                      {bulkDeleting ? <Loader2 size={11} className="animate-spin" /> : null} Confirm
-                    </button>
-                    <button onClick={() => setConfirmClearAll(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-                  </div>
-                ) : (
-                  <button onClick={() => setConfirmClearAll(true)}
-                    className="text-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-300 px-3 py-1.5 rounded-lg transition-colors">
-                    Clear all {myPostsFilter !== 'all' ? myPostsFilter : ''}
-                  </button>
-                )
-              )}
               <button
                 onClick={loadMyPosts}
                 disabled={loadingMyPosts}
@@ -799,27 +764,25 @@ export default function ContentStudioPage() {
               })}
 
               {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-3 pt-2">
-                  <button
-                    onClick={() => setPostsPage(p => Math.max(1, p - 1))}
-                    disabled={postsPage === 1}
-                    className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-40"
-                  >
-                    ← Prev
-                  </button>
-                  <span className="text-xs text-gray-500">
-                    Page {postsPage} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPostsPage(p => Math.min(totalPages, p + 1))}
-                    disabled={postsPage === totalPages}
-                    className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-40"
-                  >
-                    Next →
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center justify-center gap-3 pt-2 pb-1">
+                <button
+                  onClick={() => setPostsPage(p => Math.max(1, p - 1))}
+                  disabled={postsPage === 1}
+                  className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                >
+                  ← Prev
+                </button>
+                <span className="text-xs text-gray-400">
+                  Page {postsPage} of {totalPages} · {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''}
+                </span>
+                <button
+                  onClick={() => setPostsPage(p => Math.min(totalPages, p + 1))}
+                  disabled={postsPage === totalPages}
+                  className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-30"
+                >
+                  Next →
+                </button>
+              </div>
             </div>
           )}
         </div>
