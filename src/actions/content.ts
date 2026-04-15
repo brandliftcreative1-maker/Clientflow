@@ -5,10 +5,14 @@ import {
   generateSocialCaptions,
   generateSocialImage,
   regeneratePlatformCaption,
+  getPostRecommendations,
   type SocialCaptions,
   type SocialPlatform,
   type SocialTemplateType,
+  type PostRecommendation,
 } from '@/lib/ai-provider'
+
+export type { PostRecommendation }
 
 // ---- Helpers ----
 
@@ -18,7 +22,7 @@ async function getAccountAndUser() {
   if (!user) return { user: null, account: null, supabase }
   const { data: account } = await supabase
     .from('accounts')
-    .select('id, business_name, industry, brand_voice, primary_color, google_refresh_token, google_location_name')
+    .select('id, business_name, industry, description, brand_voice, primary_color, google_refresh_token, google_location_name')
     .eq('user_id', user.id)
     .maybeSingle()
   return { user, account, supabase }
@@ -48,6 +52,25 @@ export interface CadenceSettings {
     instagram: number[]
     facebook: number[]
     google_business: number[]
+  }
+}
+
+// ---- Recommendations ----
+
+export async function fetchRecommendations(): Promise<{ recommendations: PostRecommendation[]; error?: string }> {
+  const { user, account } = await getAccountAndUser()
+  if (!user || !account) return { recommendations: [], error: 'Not authenticated' }
+
+  try {
+    const recommendations = await getPostRecommendations({
+      businessName: account.business_name,
+      industry: account.industry,
+      description: (account as { description?: string | null }).description ?? null,
+      brandVoice: account.brand_voice,
+    })
+    return { recommendations }
+  } catch (err) {
+    return { recommendations: [], error: err instanceof Error ? err.message : 'Failed to generate recommendations' }
   }
 }
 

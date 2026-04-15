@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { CalendarDays, Loader2, RefreshCw, Download, Copy, Check } from 'lucide-react'
+import { CalendarDays, Loader2, RefreshCw, Download, Copy, Check, Sparkles, PenLine } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
   generatePost,
@@ -15,7 +15,9 @@ import {
   regenerateImageDirect,
   savePost,
   publishPost,
+  fetchRecommendations,
   type ContentPost,
+  type PostRecommendation,
 } from '@/actions/content'
 import type { SocialPlatform } from '@/lib/ai-provider'
 
@@ -85,6 +87,9 @@ export default function ContentStudioPage() {
   const searchParams = useSearchParams()
   const dateParam = searchParams.get('date')
 
+  const [activeTab, setActiveTab] = useState<'recommended' | 'create'>('recommended')
+  const [recommendations, setRecommendations] = useState<PostRecommendation[]>([])
+  const [loadingRecs, setLoadingRecs] = useState(true)
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null)
   const [tone, setTone] = useState<string>('Friendly')
   const [customTone, setCustomTone] = useState('')
@@ -98,6 +103,32 @@ export default function ContentStudioPage() {
   const [imageError, setImageError] = useState(false)
   const [copied, setCopied] = useState<SocialPlatform | null>(null)
   const [publishing, setPublishing] = useState(false)
+
+  useEffect(() => {
+    fetchRecommendations().then(result => {
+      if (result.recommendations.length > 0) setRecommendations(result.recommendations)
+      setLoadingRecs(false)
+    })
+  }, [])
+
+  const handleUseRecommendation = (rec: PostRecommendation) => {
+    setSelectedTemplate(rec.templateType as TemplateType)
+    setFormData(rec.promptData)
+    setTone(rec.suggestedTone)
+    setActiveTab('create')
+    setTimeout(() => {
+      document.getElementById('generate-form')?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
+  }
+
+  const handleRefreshRecommendations = async () => {
+    setLoadingRecs(true)
+    setRecommendations([])
+    const result = await fetchRecommendations()
+    if (result.error) toast.error(result.error)
+    else setRecommendations(result.recommendations)
+    setLoadingRecs(false)
+  }
 
   const handleGenerate = async () => {
     if (!selectedTemplate) return
@@ -197,6 +228,86 @@ export default function ContentStudioPage() {
         </Link>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab('recommended')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'recommended' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          <Sparkles size={15} />
+          Recommended for You
+        </button>
+        <button
+          onClick={() => setActiveTab('create')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'create' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          <PenLine size={15} />
+          Create a Post
+        </button>
+      </div>
+
+      {/* Recommended Tab */}
+      {activeTab === 'recommended' && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm text-gray-500">Post ideas tailored to your business — click any to generate the full post instantly.</p>
+            </div>
+            <button
+              onClick={handleRefreshRecommendations}
+              disabled={loadingRecs}
+              className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+            >
+              {loadingRecs ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              Refresh ideas
+            </button>
+          </div>
+
+          {loadingRecs ? (
+            <div className="grid grid-cols-2 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="border border-gray-200 rounded-xl p-4 animate-pulse">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 bg-gray-200 rounded-lg" />
+                    <div className="h-4 bg-gray-200 rounded w-24" />
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-full mb-2" />
+                  <div className="h-3 bg-gray-100 rounded w-3/4" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {recommendations.map((rec, i) => (
+                <div key={i} className="border border-gray-200 rounded-xl p-4 bg-white hover:border-blue-300 hover:shadow-sm transition-all group">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{rec.emoji}</span>
+                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                        {TEMPLATES.find(t => t.type === rec.templateType)?.label ?? rec.templateType}
+                      </span>
+                    </div>
+                    <span className="text-xs text-blue-500 font-medium">{rec.suggestedTone}</span>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900 mb-1">{rec.headline}</p>
+                  <p className="text-xs text-gray-500 mb-2 leading-relaxed">{rec.description}</p>
+                  <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-2 py-1 mb-3">💡 {rec.reason}</p>
+                  <button
+                    onClick={() => handleUseRecommendation(rec)}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-2 rounded-lg transition-colors"
+                  >
+                    ✨ Generate this post
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Create Tab */}
+      {activeTab === 'create' && (
+      <div>
       {/* Template Picker */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         {TEMPLATES.map(t => (
@@ -399,6 +510,8 @@ export default function ContentStudioPage() {
             </div>
           </div>
         </div>
+      )}
+      </div>
       )}
     </div>
   )

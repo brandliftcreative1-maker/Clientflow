@@ -179,6 +179,62 @@ export type SocialTemplateType =
   | 'custom'
 
 // ---------------------------------------------------------------------------
+// Post recommendation type
+// ---------------------------------------------------------------------------
+
+export interface PostRecommendation {
+  templateType: SocialTemplateType
+  emoji: string
+  headline: string
+  description: string
+  promptData: Record<string, string>
+  suggestedTone: string
+  reason: string
+}
+
+// ---------------------------------------------------------------------------
+// getPostRecommendations — AI-generated post ideas for a business
+// ---------------------------------------------------------------------------
+
+export async function getPostRecommendations(params: {
+  businessName: string
+  industry: string
+  description: string | null
+  brandVoice: string
+}): Promise<PostRecommendation[]> {
+  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
+  const prompt = `You are a social media strategist for small service businesses. Today is ${today}.
+
+Business: ${params.businessName}
+Industry: ${params.industry}
+Description: ${params.description ?? 'A local service business'}
+Brand voice: ${params.brandVoice}
+
+Generate 6 highly specific, timely, and relevant social media post ideas for this business. Each should feel tailor-made — not generic. Mix different post types. Consider the current season, what customers of this type of business care about, and what drives engagement.
+
+For each idea include the exact prompt data fields needed to generate the post.
+
+Respond with valid JSON only:
+{
+  "recommendations": [
+    {
+      "templateType": "promotion|tip|customer_spotlight|behind_scenes|seasonal|about_business|custom",
+      "emoji": "single emoji",
+      "headline": "short catchy title for this post idea (max 8 words)",
+      "description": "one sentence describing what this post will say and why it works",
+      "promptData": { "key": "value — specific details for this post" },
+      "suggestedTone": "Friendly|Professional|Exciting|Inspirational|Humorous|Urgent",
+      "reason": "one sentence on why this post is timely or relevant right now"
+    }
+  ]
+}`
+
+  const result = await callGroqWithJSON<{ recommendations: PostRecommendation[] }>(prompt)
+  return result.recommendations ?? []
+}
+
+// ---------------------------------------------------------------------------
 // generateSocialCaptions — all three platforms in one call
 // ---------------------------------------------------------------------------
 
