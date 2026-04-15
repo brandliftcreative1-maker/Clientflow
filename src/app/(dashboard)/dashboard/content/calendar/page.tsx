@@ -224,15 +224,22 @@ export default function ContentCalendarPage() {
           {/* Summary strip */}
           <div className="mt-4 grid grid-cols-4 gap-3">
             {[
-              { label: 'Scheduled', value: scheduled, color: 'text-gray-900' },
-              { label: 'Published', value: published, color: 'text-green-600' },
-              { label: 'Drafts', value: drafts, color: 'text-amber-600' },
-              { label: 'On-track', value: scheduled > 0 ? `${Math.round((published / scheduled) * 100)}%` : '—', color: 'text-blue-600' },
+              { label: 'Scheduled', value: scheduled, color: 'text-gray-900', href: '/dashboard/content?tab=posts&filter=scheduled' },
+              { label: 'Published', value: published, color: 'text-green-600', href: '/dashboard/content?tab=posts&filter=published' },
+              { label: 'Drafts', value: drafts, color: 'text-amber-600', href: '/dashboard/content?tab=posts&filter=draft' },
+              { label: 'On-track', value: scheduled > 0 ? `${Math.round((published / scheduled) * 100)}%` : '—', color: 'text-blue-600', href: null },
             ].map(s => (
-              <div key={s.label} className="border border-gray-200 rounded-xl p-3 text-center">
-                <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
-              </div>
+              s.href ? (
+                <Link key={s.label} href={s.href} className="border border-gray-200 rounded-xl p-3 text-center hover:border-gray-300 hover:bg-gray-50 transition-colors">
+                  <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{s.label} →</div>
+                </Link>
+              ) : (
+                <div key={s.label} className="border border-gray-200 rounded-xl p-3 text-center">
+                  <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+                </div>
+              )
             ))}
           </div>
         </div>

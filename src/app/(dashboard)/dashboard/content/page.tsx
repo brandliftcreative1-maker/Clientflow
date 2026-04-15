@@ -105,14 +105,16 @@ const PLATFORM_TABS: { key: SocialPlatform; label: string; abbr: string; color: 
 export default function ContentStudioPage() {
   const searchParams = useSearchParams()
   const dateParam = searchParams.get('date')
+  const tabParam = searchParams.get('tab') as 'posts' | 'week' | 'create' | null
+  const filterParam = searchParams.get('filter') as 'all' | 'scheduled' | 'published' | 'draft' | null
 
-  const [activeTab, setActiveTab] = useState<'posts' | 'week' | 'create'>('posts')
+  const [activeTab, setActiveTab] = useState<'posts' | 'week' | 'create'>(tabParam ?? 'posts')
 
   // My Posts state
   const [myPosts, setMyPosts] = useState<ContentPost[]>([])
   const [loadingMyPosts, setLoadingMyPosts] = useState(false)
   const [myPostsLoaded, setMyPostsLoaded] = useState(false)
-  const [myPostsFilter, setMyPostsFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
+  const [myPostsFilter, setMyPostsFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>(filterParam ?? 'all')
   const [myPostCopied, setMyPostCopied] = useState<{ postId: string; platform: SocialPlatform } | null>(null)
   const [expandedCaption, setExpandedCaption] = useState<{ postId: string; platform: string } | null>(null)
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
