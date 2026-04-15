@@ -503,6 +503,22 @@ export async function deletePost(postId: string): Promise<{ error?: string }> {
   return { error: error?.message }
 }
 
+// ---- Bulk Delete Posts ----
+
+export async function bulkDeletePosts(postIds: string[]): Promise<{ deleted: number; error?: string }> {
+  if (!postIds.length) return { deleted: 0 }
+  const { user, account, supabase } = await getAccountAndUser()
+  if (!user || !account) return { deleted: 0, error: 'Not authenticated' }
+
+  const { error, count } = await supabase
+    .from('content_posts')
+    .delete({ count: 'exact' })
+    .in('id', postIds)
+    .eq('account_id', account.id)
+
+  return { deleted: count ?? 0, error: error?.message }
+}
+
 // ---- Duplicate Post ----
 
 export async function duplicatePost(postId: string): Promise<{ newPostId: string | null; error?: string }> {

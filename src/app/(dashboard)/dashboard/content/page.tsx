@@ -21,6 +21,7 @@ import {
   generatePostImage,
   regenerateWeeklyCaption,
   getScheduledCountForDate,
+  bulkDeletePosts,
   scheduleReadyPost,
   publishReadyPost,
   getGoogleConnectionStatus,
@@ -120,6 +121,12 @@ export default function ContentStudioPage() {
   const [myPostCopied, setMyPostCopied] = useState<{ postId: string; platform: SocialPlatform } | null>(null)
   const [expandedCaption, setExpandedCaption] = useState<{ postId: string; platform: string } | null>(null)
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
+  const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [confirmClearAll, setConfirmClearAll] = useState(false)
+  const [postsPage, setPostsPage] = useState(1)
+
+  const POSTS_PER_PAGE = 20
 
   // This Week state
   const [weeklyPosts, setWeeklyPosts] = useState<WeeklyPost[]>([])
@@ -203,6 +210,69 @@ export default function ContentStudioPage() {
   const filteredPosts = myPostsFilter === 'all'
     ? myPosts
     : myPosts.filter(p => p.status === myPostsFilter)
+
+  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / POSTS_PER_PAGE))
+  const pagedPosts = filteredPosts.slice((postsPage - 1) * POSTS_PER_PAGE, postsPage * POSTS_PER_PAGE)
+
+  const handleFilterChange = (f: typeof myPostsFilter) => {
+    setMyPostsFilter(f)
+    setPostsPage(1)
+    setSelectedPostIds(new Set())
+    setConfirmClearAll(false)
+  }
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true)
+    const ids = Array.from(selectedPostIds)
+    const { deleted, error } = await bulkDeletePosts(ids)
+    if (error) toast.error(error)
+    else {
+      setMyPosts(prev => prev.filter(p => !selectedPostIds.has(p.id)))
+      setSelectedPostIds(new Set())
+      setPostsPage(1)
+      toast.success(`Deleted ${deleted} post${deleted !== 1 ? 's' : ''}`)
+    }
+    setBulkDeleting(false)
+  }
+
+  const handleClearFilter = async () => {
+    setBulkDeleting(true)
+    const ids = filteredPosts.map(p => p.id)
+    const { deleted, error } = await bulkDeletePosts(ids)
+    if (error) toast.error(error)
+    else {
+      setMyPosts(prev => prev.filter(p => !ids.includes(p.id)))
+      setSelectedPostIds(new Set())
+      setPostsPage(1)
+      setConfirmClearAll(false)
+      toast.success(`Cleared ${deleted} ${myPostsFilter === 'all' ? '' : myPostsFilter + ' '}post${deleted !== 1 ? 's' : ''}`)
+    }
+    setBulkDeleting(false)
+  }
+
+  const toggleSelectPost = (id: string) => {
+    setSelectedPostIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (pagedPosts.every(p => selectedPostIds.has(p.id))) {
+      setSelectedPostIds(prev => {
+        const next = new Set(prev)
+        pagedPosts.forEach(p => next.delete(p.id))
+        return next
+      })
+    } else {
+      setSelectedPostIds(prev => {
+        const next = new Set(prev)
+        pagedPosts.forEach(p => next.add(p.id))
+        return next
+      })
+    }
+  }
 
   // ---- This Week handlers ----
 
@@ -519,26 +589,60 @@ export default function ContentStudioPage() {
       {/* ── My Posts Tab ── */}
       {activeTab === 'posts' && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex gap-1">
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <div className="flex gap-1 flex-wrap">
               {(['all', 'scheduled', 'published', 'draft'] as const).map(f => (
                 <button
                   key={f}
-                  onClick={() => setMyPostsFilter(f)}
+                  onClick={() => handleFilterChange(f)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${myPostsFilter === f ? 'bg-gray-900 text-white' : 'text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
                 >
                   {f === 'all' ? 'All Posts' : f}
+                  {f !== 'all' && myPosts.filter(p => p.status === f).length > 0 && (
+                    <span className="ml-1.5 opacity-60">{myPosts.filter(p => p.status === f).length}</span>
+                  )}
                 </button>
               ))}
             </div>
-            <button
-              onClick={loadMyPosts}
-              disabled={loadingMyPosts}
-              className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
-            >
-              {loadingMyPosts ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-              Refresh
-            </button>
+            <div className="flex items-center gap-2 ml-auto">
+              {/* Bulk actions when posts are selected */}
+              {selectedPostIds.size > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-60"
+                >
+                  {bulkDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  Delete {selectedPostIds.size} selected
+                </button>
+              )}
+              {/* Clear all for current filter */}
+              {filteredPosts.length > 0 && selectedPostIds.size === 0 && (
+                confirmClearAll ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Delete all {myPostsFilter === 'all' ? '' : myPostsFilter + ' '}posts?</span>
+                    <button onClick={handleClearFilter} disabled={bulkDeleting}
+                      className="text-xs font-medium px-2.5 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-60 flex items-center gap-1">
+                      {bulkDeleting ? <Loader2 size={11} className="animate-spin" /> : null} Confirm
+                    </button>
+                    <button onClick={() => setConfirmClearAll(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmClearAll(true)}
+                    className="text-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-300 px-3 py-1.5 rounded-lg transition-colors">
+                    Clear all {myPostsFilter !== 'all' ? myPostsFilter : ''}
+                  </button>
+                )
+              )}
+              <button
+                onClick={loadMyPosts}
+                disabled={loadingMyPosts}
+                className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+              >
+                {loadingMyPosts ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Refresh
+              </button>
+            </div>
           </div>
 
           {loadingMyPosts ? (
@@ -576,14 +680,43 @@ export default function ContentStudioPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {filteredPosts.map(p => {
+              {/* Select all row */}
+              <div className="flex items-center gap-3 px-1">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="accent-blue-600 w-3.5 h-3.5"
+                    checked={pagedPosts.length > 0 && pagedPosts.every(p => selectedPostIds.has(p.id))}
+                    onChange={toggleSelectAll}
+                  />
+                  <span className="text-xs text-gray-500">
+                    {pagedPosts.every(p => selectedPostIds.has(p.id)) && pagedPosts.length > 0 ? 'Deselect all' : 'Select all on page'}
+                  </span>
+                </label>
+                {selectedPostIds.size > 0 && (
+                  <span className="text-xs text-gray-400">{selectedPostIds.size} selected</span>
+                )}
+              </div>
+
+              {pagedPosts.map(p => {
                 const tmpl = TEMPLATES.find(t => t.type === p.template_type)
                 const preview = (p.captions as { instagram?: string }).instagram ?? ''
                 const dateLabel = p.scheduled_date
                   ? new Date(p.scheduled_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                   : null
+                const isSelected = selectedPostIds.has(p.id)
                 return (
-                  <div key={p.id} className="border border-gray-100 rounded-xl p-4 bg-white hover:border-gray-200 transition-all flex gap-3">
+                  <div key={p.id} className={`border rounded-xl p-4 bg-white transition-all flex gap-3 ${isSelected ? 'border-blue-300 bg-blue-50/30' : 'border-gray-100 hover:border-gray-200'}`}>
+                    {/* Checkbox */}
+                    <div className="flex-shrink-0 flex items-start pt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectPost(p.id)}
+                        className="accent-blue-600 w-3.5 h-3.5 cursor-pointer"
+                      />
+                    </div>
+
                     {/* Thumbnail */}
                     <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
                       {p.image_url ? (
@@ -664,6 +797,29 @@ export default function ContentStudioPage() {
                   </div>
                 )
               })}
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => setPostsPage(p => Math.max(1, p - 1))}
+                    disabled={postsPage === 1}
+                    className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    ← Prev
+                  </button>
+                  <span className="text-xs text-gray-500">
+                    Page {postsPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPostsPage(p => Math.min(totalPages, p + 1))}
+                    disabled={postsPage === totalPages}
+                    className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
