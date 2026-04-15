@@ -477,6 +477,32 @@ export async function duplicatePost(postId: string): Promise<{ newPostId: string
   return { newPostId: newPost?.id ?? null, error: error?.message }
 }
 
+// ---- My Posts (content history) ----
+
+export async function fetchMyPosts(): Promise<{ posts: ContentPost[]; error?: string }> {
+  const { user, account, supabase } = await getAccountAndUser()
+  if (!user || !account) return { posts: [], error: 'Not authenticated' }
+
+  try {
+    const { data } = await supabase
+      .from('content_posts')
+      .select('*')
+      .eq('account_id', account.id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    return {
+      posts: (data ?? []).map(p => ({
+        ...p,
+        prompt_data: p.prompt_data as unknown as Record<string, string>,
+        captions: p.captions as unknown as SocialCaptions,
+      })),
+    }
+  } catch {
+    return { posts: [] }
+  }
+}
+
 // ---- Get Calendar Posts ----
 
 export async function getCalendarPosts(

@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { CalendarDays, Loader2, RefreshCw, Download, Copy, Check, Sparkles, PenLine, Calendar, Send } from 'lucide-react'
+import { CalendarDays, Loader2, RefreshCw, Download, Copy, Check, PenLine, Calendar, Send, Trash2, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
   generatePost,
@@ -15,14 +15,14 @@ import {
   regenerateImageDirect,
   savePost,
   publishPost,
-  fetchReadyContent,
+  fetchMyPosts,
   fetchWeeklyContent,
   generatePostImage,
   scheduleReadyPost,
   publishReadyPost,
   getGoogleConnectionStatus,
+  deletePost,
   type ContentPost,
-  type ReadyPost,
   type WeeklyPost,
 } from '@/actions/content'
 import type { SocialPlatform } from '@/lib/ai-provider'
@@ -62,12 +62,12 @@ const FORM_FIELDS: Record<TemplateType, { key: string; label: string; placeholde
     { key: 'extra', label: 'Anything else to include? (optional)', placeholder: 'Stats, common mistakes, step-by-step...' },
   ],
   customer_spotlight: [
-    { key: 'quote', label: "Customer quote or review", placeholder: '"Best service ever!" — Sarah M.' },
+    { key: 'quote', label: 'Customer quote or review', placeholder: '"Best service ever!" — Sarah M.' },
     { key: 'result', label: 'What result did they get? (optional)', placeholder: 'Saved 3 hours a week, saw 30% more leads...' },
     { key: 'cta', label: 'Call to action (optional)', placeholder: 'Try it yourself, book a free consult...' },
   ],
   behind_scenes: [
-    { key: 'description', label: "What are you showing?", placeholder: 'Our team preparing for a big job' },
+    { key: 'description', label: 'What are you showing?', placeholder: 'Our team preparing for a big job' },
     { key: 'message', label: 'Key message or takeaway (optional)', placeholder: 'We take pride in every detail...' },
   ],
   seasonal: [
@@ -87,16 +87,35 @@ const FORM_FIELDS: Record<TemplateType, { key: string; label: string; placeholde
   ],
 }
 
+const STATUS_STYLES: Record<string, string> = {
+  draft: 'bg-gray-100 text-gray-600',
+  scheduled: 'bg-blue-50 text-blue-700',
+  published: 'bg-green-50 text-green-700',
+}
+
+const PLATFORM_TABS: { key: SocialPlatform; label: string; abbr: string; color: string }[] = [
+  { key: 'instagram', label: 'Instagram', abbr: 'IG', color: 'bg-[#e1306c]' },
+  { key: 'facebook', label: 'Facebook', abbr: 'FB', color: 'bg-[#1877f2]' },
+  { key: 'google_business', label: 'Google Business', abbr: 'G', color: 'bg-[#f97316]' },
+]
+
 // ---- Main Page ----
 
 export default function ContentStudioPage() {
   const searchParams = useSearchParams()
   const dateParam = searchParams.get('date')
 
-  const [activeTab, setActiveTab] = useState<'recommended' | 'create'>('recommended')
-  const [recView, setRecView] = useState<'picks' | 'week'>('picks')
-  const [readyPosts, setReadyPosts] = useState<ReadyPost[]>([])
-  const [loadingRecs, setLoadingRecs] = useState(true)
+  const [activeTab, setActiveTab] = useState<'posts' | 'week' | 'create'>('posts')
+
+  // My Posts state
+  const [myPosts, setMyPosts] = useState<ContentPost[]>([])
+  const [loadingMyPosts, setLoadingMyPosts] = useState(false)
+  const [myPostsLoaded, setMyPostsLoaded] = useState(false)
+  const [myPostsFilter, setMyPostsFilter] = useState<'all' | 'scheduled' | 'published' | 'draft'>('all')
+  const [myPostCopied, setMyPostCopied] = useState<{ postId: string; platform: SocialPlatform } | null>(null)
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
+
+  // This Week state
   const [weeklyPosts, setWeeklyPosts] = useState<WeeklyPost[]>([])
   const [loadingWeekly, setLoadingWeekly] = useState(false)
   const [weeklyLoaded, setWeeklyLoaded] = useState(false)
@@ -108,22 +127,17 @@ export default function ContentStudioPage() {
   const [weeklyPlatform, setWeeklyPlatform] = useState<Record<string, SocialPlatform>>({})
   const [weeklyCaptions, setWeeklyCaptions] = useState<Record<string, Record<SocialPlatform, string>>>({})
   const [weeklyCopied, setWeeklyCopied] = useState<{ day: string; platform: SocialPlatform } | null>(null)
-  // Schedule + publish state (shared by Top Picks and This Week, keyed by card id)
+
+  // Shared schedule + publish state (keyed by card id)
   const [googleConnected, setGoogleConnected] = useState(false)
   const [scheduleDate, setScheduleDate] = useState<Record<string, string>>({})
   const [scheduleOpen, setScheduleOpen] = useState<Record<string, boolean>>({})
   const [scheduling, setScheduling] = useState<Record<string, boolean>>({})
-  const [scheduled, setScheduled] = useState<Record<string, string>>({})  // value = formatted date
+  const [scheduled, setScheduled] = useState<Record<string, string>>({})
   const [googlePublishing, setGooglePublishing] = useState<Record<string, boolean>>({})
   const [googlePosted, setGooglePosted] = useState<Record<string, boolean>>({})
-  const [cardPlatform, setCardPlatform] = useState<Record<number, SocialPlatform>>({ 0: 'instagram', 1: 'instagram', 2: 'instagram' })
-  const [cardCopied, setCardCopied] = useState<{ index: number; platform: SocialPlatform } | null>(null)
-  const [editedCaptions, setEditedCaptions] = useState<Record<number, Record<SocialPlatform, string>>>({})
-  const [cardImages, setCardImages] = useState<Record<number, string | null>>({})
-  const [cardImageLoading, setCardImageLoading] = useState<Record<number, boolean>>({})
-  const [cardImageError, setCardImageError] = useState<Record<number, boolean>>({})
-  const [cardImageRetries, setCardImageRetries] = useState<Record<number, number>>({})
-  const uploadRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  // Create tab state
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null)
   const [tone, setTone] = useState<string>('Friendly')
   const [customTone, setCustomTone] = useState('')
@@ -138,96 +152,42 @@ export default function ContentStudioPage() {
   const [copied, setCopied] = useState<SocialPlatform | null>(null)
   const [publishing, setPublishing] = useState(false)
 
+  const todayISO = new Date().toISOString().split('T')[0]
+
   useEffect(() => {
     getGoogleConnectionStatus().then(r => setGoogleConnected(r.connected))
-    fetchReadyContent().then(result => {
-      if (result.posts.length > 0) {
-        setReadyPosts(result.posts)
-        const initialCaptions: Record<number, Record<SocialPlatform, string>> = {}
-        const initialImages: Record<number, string | null> = {}
-        const initialImgLoading: Record<number, boolean> = {}
-        result.posts.forEach((p, i) => {
-          initialCaptions[i] = { ...p.captions }
-          initialImages[i] = p.imageUrl ?? null
-          initialImgLoading[i] = !!p.imageUrl
-        })
-        setEditedCaptions(initialCaptions)
-        setCardImages(initialImages)
-        setCardImageLoading(initialImgLoading)
-        setCardImageError({})
-      }
-      setLoadingRecs(false)
-    })
+    loadMyPosts()
   }, [])
 
-  const handleUseReadyPost = (post: ReadyPost) => {
-    setSelectedTemplate(post.templateType as TemplateType)
-    setFormData(post.promptData)
-    setTone(post.tone)
-    setActiveTab('create')
+  // ---- My Posts handlers ----
+
+  const loadMyPosts = async () => {
+    setLoadingMyPosts(true)
+    const result = await fetchMyPosts()
+    setMyPosts(result.posts)
+    setMyPostsLoaded(true)
+    setLoadingMyPosts(false)
   }
 
-  const handleRefreshRecommendations = async () => {
-    setLoadingRecs(true)
-    setReadyPosts([])
-    setEditedCaptions({})
-    setCardImages({})
-    setCardImageLoading({})
-    setCardImageError({})
-    setCardImageRetries({})
-    const result = await fetchReadyContent()
+  const handleDeletePost = async (postId: string) => {
+    setDeletingPostId(postId)
+    const result = await deletePost(postId)
     if (result.error) toast.error(result.error)
-    else {
-      setReadyPosts(result.posts)
-      const initialCaptions: Record<number, Record<SocialPlatform, string>> = {}
-      const initialImages: Record<number, string | null> = {}
-      const initialImgLoading: Record<number, boolean> = {}
-      result.posts.forEach((p, i) => {
-        initialCaptions[i] = { ...p.captions }
-        initialImages[i] = p.imageUrl ?? null
-        initialImgLoading[i] = !!p.imageUrl
-      })
-      setEditedCaptions(initialCaptions)
-      setCardImages(initialImages)
-      setCardImageLoading(initialImgLoading)
-      setCardImageError({})
-    }
-    setLoadingRecs(false)
+    else setMyPosts(prev => prev.filter(p => p.id !== postId))
+    setDeletingPostId(null)
   }
 
-  const handleCardNewImage = async (i: number, rp: ReadyPost) => {
-    setCardImageLoading(prev => ({ ...prev, [i]: true }))
-    setCardImageError(prev => ({ ...prev, [i]: false }))
-    setCardImageRetries(prev => ({ ...prev, [i]: 0 }))
-    const result = await generatePostImage(rp.templateType, rp.promptData)
-    if (result.error) {
-      toast.error(result.error)
-      setCardImageLoading(prev => ({ ...prev, [i]: false }))
-    } else {
-      setCardImages(prev => ({ ...prev, [i]: result.imageUrl }))
-      setCardImageLoading(prev => ({ ...prev, [i]: !!result.imageUrl }))
-    }
+  const handleMyPostCopy = async (postId: string, platform: SocialPlatform, text: string) => {
+    await navigator.clipboard.writeText(text)
+    setMyPostCopied({ postId, platform })
+    setTimeout(() => setMyPostCopied(null), 2000)
   }
 
-  const handleCardImageError = (i: number, rp: ReadyPost) => {
-    const retries = cardImageRetries[i] ?? 0
-    setCardImageLoading(prev => ({ ...prev, [i]: false }))
-    if (retries < 2) {
-      // Auto-retry silently with a new seed
-      setCardImageRetries(prev => ({ ...prev, [i]: retries + 1 }))
-      setCardImageLoading(prev => ({ ...prev, [i]: true }))
-      setTimeout(() => handleCardNewImage(i, rp), 1500)
-    } else {
-      setCardImageError(prev => ({ ...prev, [i]: true }))
-    }
-  }
+  const filteredPosts = myPostsFilter === 'all'
+    ? myPosts
+    : myPosts.filter(p => p.status === myPostsFilter)
 
-  const handleCardUpload = (i: number, file: File) => {
-    const url = URL.createObjectURL(file)
-    setCardImages(prev => ({ ...prev, [i]: url }))
-    setCardImageLoading(prev => ({ ...prev, [i]: true }))
-    setCardImageError(prev => ({ ...prev, [i]: false }))
-  }
+  // ---- This Week handlers ----
 
   const loadWeeklyContent = async () => {
     setLoadingWeekly(true)
@@ -258,40 +218,32 @@ export default function ContentStudioPage() {
     setLoadingWeekly(false)
   }
 
-  const handleWeeklyNewImage = async (day: WeeklyPost['day'], post: WeeklyPost) => {
+  const handleWeeklyNewImage = async (day: WeeklyPost['day'], wp: WeeklyPost) => {
     setWeeklyImgLoading(prev => ({ ...prev, [day]: true }))
     setWeeklyImgError(prev => ({ ...prev, [day]: false }))
     setWeeklyImgRetries(prev => ({ ...prev, [day]: 0 }))
-    const result = await generatePostImage(post.templateType, post.promptData)
-    if (result.error) {
-      toast.error(result.error)
-      setWeeklyImgLoading(prev => ({ ...prev, [day]: false }))
-    } else {
-      setWeeklyImages(prev => ({ ...prev, [day]: result.imageUrl }))
-      setWeeklyImgLoading(prev => ({ ...prev, [day]: !!result.imageUrl }))
-    }
+    const result = await generatePostImage(wp.templateType, wp.promptData)
+    if (result.error) { toast.error(result.error); setWeeklyImgLoading(prev => ({ ...prev, [day]: false })) }
+    else { setWeeklyImages(prev => ({ ...prev, [day]: result.imageUrl })); setWeeklyImgLoading(prev => ({ ...prev, [day]: !!result.imageUrl })) }
   }
 
-  const handleWeeklyImageError = (day: WeeklyPost['day'], post: WeeklyPost) => {
+  const handleWeeklyImageError = (day: WeeklyPost['day'], wp: WeeklyPost) => {
     const retries = weeklyImgRetries[day] ?? 0
     setWeeklyImgLoading(prev => ({ ...prev, [day]: false }))
     if (retries < 2) {
       setWeeklyImgRetries(prev => ({ ...prev, [day]: retries + 1 }))
       setWeeklyImgLoading(prev => ({ ...prev, [day]: true }))
-      setTimeout(() => handleWeeklyNewImage(day, post), 1500)
-    } else {
-      setWeeklyImgError(prev => ({ ...prev, [day]: true }))
-    }
+      setTimeout(() => handleWeeklyNewImage(day, wp), 1500)
+    } else { setWeeklyImgError(prev => ({ ...prev, [day]: true })) }
   }
 
   const handleWeeklyCopy = async (day: string, platform: SocialPlatform) => {
-    const text = weeklyCaptions[day]?.[platform] ?? ''
-    await navigator.clipboard.writeText(text)
+    await navigator.clipboard.writeText(weeklyCaptions[day]?.[platform] ?? '')
     setWeeklyCopied({ day, platform })
     setTimeout(() => setWeeklyCopied(null), 2000)
   }
 
-  const todayISO = new Date().toISOString().split('T')[0]
+  // ---- Schedule + Publish ----
 
   const handleSchedule = async (
     cardId: string,
@@ -307,13 +259,13 @@ export default function ContentStudioPage() {
       scheduledDate: date,
     })
     setScheduling(prev => ({ ...prev, [cardId]: false }))
-    if (result.error) {
-      toast.error(result.error)
-    } else {
+    if (result.error) { toast.error(result.error) }
+    else {
       const formatted = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       setScheduled(prev => ({ ...prev, [cardId]: formatted }))
       setScheduleOpen(prev => ({ ...prev, [cardId]: false }))
       toast.success(`Scheduled for ${formatted}! Reminder email sent.`)
+      if (myPostsLoaded) loadMyPosts()
     }
   }
 
@@ -329,20 +281,79 @@ export default function ContentStudioPage() {
       imageUrl: params.imageUrl,
     })
     setGooglePublishing(prev => ({ ...prev, [cardId]: false }))
-    if (result.error) {
-      toast.error(result.error)
-    } else {
-      setGooglePosted(prev => ({ ...prev, [cardId]: true }))
-      toast.success('Posted to Google Business!')
-    }
+    if (result.error) { toast.error(result.error) }
+    else { setGooglePosted(prev => ({ ...prev, [cardId]: true })); toast.success('Posted to Google Business!') }
   }
 
-  const handleCardCopy = async (index: number, platform: SocialPlatform) => {
-    const text = editedCaptions[index]?.[platform] ?? ''
-    await navigator.clipboard.writeText(text)
-    setCardCopied({ index, platform })
-    setTimeout(() => setCardCopied(null), 2000)
+  // ---- Card footer (Schedule + Google) — reused in This Week ----
+
+  const renderCardFooter = (
+    cardId: string,
+    params: { templateType: string; promptData: Record<string, string>; captions: Record<SocialPlatform, string>; imageUrl: string | null },
+    templateLabel: { emoji: string | undefined; label: string | undefined }
+  ) => {
+    const isScheduled = scheduled[cardId]
+    const isGPosted = googlePosted[cardId]
+    return (
+      <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {isScheduled ? (
+            <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
+              <Check size={11} /> Scheduled for {isScheduled}
+            </span>
+          ) : scheduleOpen[cardId] ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="date" min={todayISO}
+                value={scheduleDate[cardId] ?? todayISO}
+                onChange={e => setScheduleDate(prev => ({ ...prev, [cardId]: e.target.value }))}
+                className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+              <button
+                onClick={() => handleSchedule(cardId, params)}
+                disabled={scheduling[cardId]}
+                className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+              >
+                {scheduling[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Confirm
+              </button>
+              <button onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: false }))} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: true }))}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
+            >
+              <Calendar size={11} /> Schedule
+            </button>
+          )}
+          {!scheduleOpen[cardId] && (
+            isGPosted ? (
+              <span className="flex items-center gap-1.5 text-xs text-orange-600 font-medium px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-200">
+                <Check size={11} /> Posted to Google
+              </span>
+            ) : (
+              <button
+                onClick={() => googleConnected
+                  ? handleGooglePublish(cardId, params)
+                  : toast.error('Connect Google Business in Settings first.')}
+                disabled={googlePublishing[cardId]}
+                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${googleConnected ? 'border-orange-300 text-orange-600 hover:bg-orange-50' : 'border-gray-200 text-gray-400 cursor-not-allowed'}`}
+              >
+                {googlePublishing[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
+                {googleConnected ? 'Post to Google' : 'Google (not connected)'}
+              </button>
+            )
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-400">{templateLabel.emoji} {templateLabel.label}</span>
+          <span className="text-xs text-gray-400 flex items-center gap-1"><PenLine size={10} /> Click caption to edit</span>
+        </div>
+      </div>
+    )
   }
+
+  // ---- Create tab handlers ----
 
   const handleGenerate = async () => {
     if (!selectedTemplate) return
@@ -350,23 +361,17 @@ export default function ContentStudioPage() {
     setPost(null)
     try {
       const effectiveTone = tone === 'Custom' ? (customTone.trim() || 'Friendly') : tone
-      const promptData = { ...formData, tone: effectiveTone }
-      const result = await generatePost(selectedTemplate, promptData, dateParam ?? undefined)
+      const result = await generatePost(selectedTemplate, { ...formData, tone: effectiveTone }, dateParam ?? undefined)
       if (result.error) { toast.error(result.error); return }
       if (result.post) {
         setPost(result.post)
         setCaptions(result.post.captions)
         setImageLoading(!!result.post.image_url)
         setImageError(false)
-        if (result.imageError) {
-          toast.error(`Image failed: ${result.imageError}`, { duration: 6000 })
-        }
+        if (result.imageError) toast.error(`Image failed: ${result.imageError}`, { duration: 6000 })
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Generation failed')
-    } finally {
-      setGenerating(false)
-    }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Generation failed') }
+    finally { setGenerating(false) }
   }
 
   const handleRegenerateCaption = async (platform: SocialPlatform) => {
@@ -375,13 +380,8 @@ export default function ContentStudioPage() {
     try {
       const result = await regenerateCaption(post.id, platform)
       if (result.error) { toast.error(result.error); return }
-      if (result.caption) {
-        setCaptions(prev => ({ ...prev, [platform]: result.caption! }))
-        toast.success(`${PLATFORM_CONFIG[platform].label} caption regenerated`)
-      }
-    } finally {
-      setRegenLoading(null)
-    }
+      if (result.caption) { setCaptions(prev => ({ ...prev, [platform]: result.caption! })); toast.success(`${PLATFORM_CONFIG[platform].label} caption regenerated`) }
+    } finally { setRegenLoading(null) }
   }
 
   const handleRegenerateImage = async () => {
@@ -390,15 +390,8 @@ export default function ContentStudioPage() {
     try {
       const result = await regenerateImageDirect(post.id, post.template_type, post.prompt_data)
       if (result.error) { toast.error(result.error); return }
-      if (result.imageUrl) {
-        setPost(prev => prev ? { ...prev, image_url: result.imageUrl! } : prev)
-        setImageLoading(true)
-        setImageError(false)
-        toast.success('New image generated')
-      }
-    } finally {
-      setRegenImageLoading(false)
-    }
+      if (result.imageUrl) { setPost(prev => prev ? { ...prev, image_url: result.imageUrl! } : prev); setImageLoading(true); setImageError(false) }
+    } finally { setRegenImageLoading(false) }
   }
 
   const handleCopy = async (platform: SocialPlatform) => {
@@ -413,18 +406,13 @@ export default function ContentStudioPage() {
     try {
       await savePost(post.id, captions)
       const result = await publishPost(post.id, captions, false)
-      if (result.error) {
-        toast.error(result.error)
-      } else {
-        toast.success('Post saved! Copy each caption to post on your platforms.')
-        setPost(prev => prev ? { ...prev, status: 'published' } : prev)
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save post')
-    } finally {
-      setPublishing(false)
-    }
+      if (result.error) toast.error(result.error)
+      else { toast.success('Post saved! Copy each caption to post on your platforms.'); setPost(prev => prev ? { ...prev, status: 'published' } : prev) }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to save post') }
+    finally { setPublishing(false) }
   }
+
+  // ---- Render ----
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -436,8 +424,7 @@ export default function ContentStudioPage() {
         </div>
         <Link href="/dashboard/content/calendar">
           <Button variant="outline" className="flex items-center gap-2">
-            <CalendarDays size={16} />
-            View Calendar
+            <CalendarDays size={16} /> View Calendar
           </Button>
         </Link>
       </div>
@@ -445,133 +432,245 @@ export default function ContentStudioPage() {
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
         <button
-          onClick={() => setActiveTab('recommended')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'recommended' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          onClick={() => { setActiveTab('posts'); if (!myPostsLoaded) loadMyPosts() }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'posts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          <Sparkles size={15} />
-          Recommended for You
+          <FileText size={15} /> My Posts
+        </button>
+        <button
+          onClick={() => { setActiveTab('week'); if (!weeklyLoaded && !loadingWeekly) loadWeeklyContent() }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'week' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          📅 This Week
         </button>
         <button
           onClick={() => setActiveTab('create')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'create' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          <PenLine size={15} />
-          Create a Post
+          <PenLine size={15} /> Create a Post
         </button>
       </div>
 
-      {/* Recommended Tab */}
-      {activeTab === 'recommended' && (
+      {/* ── My Posts Tab ── */}
+      {activeTab === 'posts' && (
         <div>
-          {/* Sub-view toggle + action */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-              <button
-                onClick={() => setRecView('picks')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${recView === 'picks' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                ✨ Top Picks
-              </button>
-              <button
-                onClick={() => { setRecView('week'); if (!weeklyLoaded && !loadingWeekly) loadWeeklyContent() }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${recView === 'week' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                📅 This Week
-              </button>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-1">
+              {(['all', 'scheduled', 'published', 'draft'] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setMyPostsFilter(f)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${myPostsFilter === f ? 'bg-gray-900 text-white' : 'text-gray-500 border border-gray-200 hover:bg-gray-50'}`}
+                >
+                  {f === 'all' ? 'All Posts' : f}
+                </button>
+              ))}
             </div>
-            {recView === 'picks' && (
-              <button
-                onClick={handleRefreshRecommendations}
-                disabled={loadingRecs}
-                className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
-              >
-                {loadingRecs ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                New picks
-              </button>
-            )}
-            {recView === 'week' && weeklyLoaded && (
-              <button
-                onClick={() => { setWeeklyLoaded(false); loadWeeklyContent() }}
-                disabled={loadingWeekly}
-                className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
-              >
-                {loadingWeekly ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                Refresh plan
-              </button>
-            )}
+            <button
+              onClick={loadMyPosts}
+              disabled={loadingMyPosts}
+              className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+            >
+              {loadingMyPosts ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              Refresh
+            </button>
           </div>
 
-          {recView === 'picks' && loadingRecs ? (
-            <div className="flex flex-col gap-5">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="border border-gray-200 rounded-2xl p-5 animate-pulse">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-24 h-6 bg-gray-200 rounded-full" />
-                    <div className="h-5 bg-gray-200 rounded w-48" />
+          {loadingMyPosts ? (
+            <div className="flex flex-col gap-3">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="border border-gray-100 rounded-xl p-4 animate-pulse flex gap-4">
+                  <div className="w-12 h-12 bg-gray-200 rounded-lg flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="h-4 bg-gray-200 rounded w-32 mb-2" />
+                    <div className="h-3 bg-gray-100 rounded w-full mb-2" />
+                    <div className="h-3 bg-gray-100 rounded w-2/3" />
                   </div>
-                  <div className="h-10 bg-gray-100 rounded-lg mb-4 w-full" />
-                  <div className="flex gap-2 mb-3">
-                    <div className="h-8 w-16 bg-gray-200 rounded-lg" />
-                    <div className="h-8 w-16 bg-gray-200 rounded-lg" />
-                    <div className="h-8 w-24 bg-gray-200 rounded-lg" />
-                  </div>
-                  <div className="h-24 bg-gray-100 rounded-lg" />
                 </div>
               ))}
-              <p className="text-xs text-center text-gray-400 -mt-2">Writing your posts… this takes about 10 seconds</p>
             </div>
-          ) : recView === 'picks' && readyPosts.length === 0 ? (
-            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-10 text-center">
-              <p className="text-gray-500 text-sm mb-3">Couldn&apos;t load recommendations right now.</p>
-              <button onClick={handleRefreshRecommendations} className="text-sm text-blue-600 hover:underline">Try again</button>
+          ) : filteredPosts.length === 0 ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
+              <p className="text-2xl mb-3">📝</p>
+              <p className="text-sm font-medium text-gray-700 mb-1">
+                {myPostsFilter === 'all' ? 'No posts yet' : `No ${myPostsFilter} posts`}
+              </p>
+              <p className="text-xs text-gray-400 mb-4">
+                {myPostsFilter === 'all'
+                  ? 'Head to This Week or Create a Post to generate your first post.'
+                  : `You don't have any ${myPostsFilter} posts.`}
+              </p>
+              {myPostsFilter === 'all' && (
+                <button
+                  onClick={() => { setActiveTab('week'); if (!weeklyLoaded && !loadingWeekly) loadWeeklyContent() }}
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  View this week&apos;s plan →
+                </button>
+              )}
             </div>
-          ) : recView === 'picks' ? (
-            <div className="flex flex-col gap-5">
-              {readyPosts.map((rp, i) => {
-                const categoryStyles = {
-                  timely: { bar: 'bg-amber-500', badge: 'bg-amber-50 text-amber-700 border-amber-200', border: 'border-amber-200', accent: 'text-amber-600 bg-amber-50' },
-                  trust:  { bar: 'bg-blue-500',  badge: 'bg-blue-50 text-blue-700 border-blue-200',   border: 'border-blue-200',  accent: 'text-blue-600 bg-blue-50'  },
-                  action: { bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', border: 'border-emerald-200', accent: 'text-emerald-700 bg-emerald-50' },
-                }
-                const style = categoryStyles[rp.category] ?? categoryStyles.timely
-                const activePlatform = cardPlatform[i] ?? 'instagram'
-                const caption = editedCaptions[i]?.[activePlatform] ?? rp.captions[activePlatform]
-                const isCopied = cardCopied?.index === i && cardCopied.platform === activePlatform
-
-                const platformTabs: { key: SocialPlatform; label: string; abbr: string; color: string }[] = [
-                  { key: 'instagram', label: 'Instagram', abbr: 'IG', color: 'bg-[#e1306c]' },
-                  { key: 'facebook', label: 'Facebook', abbr: 'FB', color: 'bg-[#1877f2]' },
-                  { key: 'google_business', label: 'Google Business', abbr: 'G', color: 'bg-[#f97316]' },
-                ]
-
-                const imgUrl = cardImages[i] ?? null
-                const imgLoading = cardImageLoading[i] ?? false
-                const imgError = cardImageError[i] ?? false
-
+          ) : (
+            <div className="flex flex-col gap-3">
+              {filteredPosts.map(p => {
+                const tmpl = TEMPLATES.find(t => t.type === p.template_type)
+                const preview = (p.captions as { instagram?: string }).instagram ?? ''
+                const dateLabel = p.scheduled_date
+                  ? new Date(p.scheduled_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  : null
                 return (
-                  <div key={i} className={`border rounded-2xl overflow-hidden bg-white ${style.border}`}>
-                    {/* Colored top bar */}
-                    <div className={`h-1 ${style.bar}`} />
+                  <div key={p.id} className="border border-gray-100 rounded-xl p-4 bg-white hover:border-gray-200 transition-all flex gap-3">
+                    {/* Thumbnail */}
+                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                      {p.image_url ? (
+                        <img
+                          src={p.image_url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                      ) : (
+                        <span className="text-xl">{tmpl?.emoji ?? '📄'}</span>
+                      )}
+                    </div>
 
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[p.status] ?? STATUS_STYLES.draft}`}>
+                          {p.status}
+                        </span>
+                        {dateLabel && <span className="text-xs text-gray-400">{dateLabel}</span>}
+                        <span className="text-xs text-gray-400 ml-auto">{tmpl?.emoji} {tmpl?.label}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 line-clamp-2 mb-2">{preview}</p>
+                      <div className="flex items-center gap-2">
+                        {PLATFORM_TABS.map(pt => {
+                          const cap = (p.captions as unknown as Record<string, string>)[pt.key] ?? ''
+                          const isCopied = myPostCopied?.postId === p.id && myPostCopied.platform === pt.key
+                          return (
+                            <button
+                              key={pt.key}
+                              onClick={() => handleMyPostCopy(p.id, pt.key, cap)}
+                              disabled={!cap}
+                              className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg font-medium transition-all ${isCopied ? 'bg-green-100 text-green-700' : `${pt.color} text-white opacity-90 hover:opacity-100`} disabled:opacity-30`}
+                            >
+                              {isCopied ? <Check size={10} /> : <Copy size={10} />}
+                              {pt.abbr}
+                            </button>
+                          )
+                        })}
+                        <button
+                          onClick={() => handleDeletePost(p.id)}
+                          disabled={deletingPostId === p.id}
+                          className="ml-auto text-gray-300 hover:text-red-400 transition-colors p-1"
+                        >
+                          {deletingPostId === p.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── This Week Tab ── */}
+      {activeTab === 'week' && (
+        <div>
+          {loadingWeekly ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Loader2 size={28} className="animate-spin text-blue-400" />
+              <p className="text-sm text-gray-500">Building your week&apos;s content plan…</p>
+              <p className="text-xs text-gray-400">This takes about 15 seconds</p>
+            </div>
+          ) : !weeklyLoaded ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
+              <p className="text-2xl mb-3">📅</p>
+              <p className="text-sm font-medium text-gray-700 mb-1">Your strategic weekly content plan</p>
+              <p className="text-xs text-gray-500 mb-5">5 posts across Monday–Friday, each with a different strategic purpose</p>
+              <button onClick={loadWeeklyContent} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors">
+                Generate this week&apos;s plan
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <p className="text-sm text-gray-500">Strategic 5-day plan — each day serves a different content purpose.</p>
+                <button
+                  onClick={() => { setWeeklyLoaded(false); loadWeeklyContent() }}
+                  disabled={loadingWeekly}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50"
+                >
+                  <RefreshCw size={12} /> Refresh plan
+                </button>
+              </div>
+
+              {/* Day selector */}
+              <div className="grid grid-cols-5 gap-2 mb-6">
+                {weeklyPosts.map(wp => {
+                  const isSelected = selectedDay === wp.day
+                  const colors: Record<string, { idle: string; active: string }> = {
+                    monday:    { idle: 'border-violet-200 bg-violet-50',   active: 'border-violet-400 bg-violet-600 text-white shadow-lg shadow-violet-100' },
+                    tuesday:   { idle: 'border-amber-200 bg-amber-50',     active: 'border-amber-400 bg-amber-500 text-white shadow-lg shadow-amber-100' },
+                    wednesday: { idle: 'border-sky-200 bg-sky-50',         active: 'border-sky-400 bg-sky-600 text-white shadow-lg shadow-sky-100' },
+                    thursday:  { idle: 'border-emerald-200 bg-emerald-50', active: 'border-emerald-400 bg-emerald-600 text-white shadow-lg shadow-emerald-100' },
+                    friday:    { idle: 'border-rose-200 bg-rose-50',       active: 'border-rose-400 bg-rose-500 text-white shadow-lg shadow-rose-100' },
+                  }
+                  const c = colors[wp.day] ?? colors.monday
+                  return (
+                    <button
+                      key={wp.day}
+                      onClick={() => setSelectedDay(wp.day)}
+                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${isSelected ? c.active : `${c.idle} hover:opacity-80`}`}
+                    >
+                      <span className="text-lg">{wp.pillarEmoji}</span>
+                      <span className={`text-xs font-bold uppercase tracking-wide ${isSelected ? 'text-white' : 'text-gray-700'}`}>{wp.dayLabel.slice(0, 3)}</span>
+                      <span className={`text-xs leading-tight text-center ${isSelected ? 'text-white/90' : 'text-gray-500'}`}>{wp.pillar}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Selected day post card */}
+              {weeklyPosts.filter(wp => wp.day === selectedDay).map(wp => {
+                const imgUrl = weeklyImages[wp.day] ?? null
+                const imgLoading = weeklyImgLoading[wp.day] ?? false
+                const imgError = weeklyImgError[wp.day] ?? false
+                const activePlatform = weeklyPlatform[wp.day] ?? 'instagram'
+                const caption = weeklyCaptions[wp.day]?.[activePlatform] ?? wp.captions[activePlatform]
+                const isCopied = weeklyCopied?.day === wp.day && weeklyCopied.platform === activePlatform
+                const cardId = `week-${wp.day}`
+                const dayAccent: Record<string, { bar: string; badge: string; accent: string }> = {
+                  monday:    { bar: 'bg-violet-500', badge: 'bg-violet-50 text-violet-700 border-violet-200', accent: 'text-violet-700 bg-violet-50' },
+                  tuesday:   { bar: 'bg-amber-500',  badge: 'bg-amber-50 text-amber-700 border-amber-200',   accent: 'text-amber-700 bg-amber-50'   },
+                  wednesday: { bar: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-200',         accent: 'text-sky-700 bg-sky-50'         },
+                  thursday:  { bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'text-emerald-700 bg-emerald-50' },
+                  friday:    { bar: 'bg-rose-500',   badge: 'bg-rose-50 text-rose-700 border-rose-200',      accent: 'text-rose-700 bg-rose-50'      },
+                }
+                const style = dayAccent[wp.day] ?? dayAccent.monday
+                const tmpl = TEMPLATES.find(t => t.type === wp.templateType)
+                return (
+                  <div key={wp.day} className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
+                    <div className={`h-1 ${style.bar}`} />
                     <div className="flex">
-                      {/* Left: image panel */}
+                      {/* Image panel */}
                       <div className="w-52 flex-shrink-0 p-4 border-r border-gray-100 flex flex-col">
-                        {/* Image */}
                         <div className="aspect-square w-full rounded-xl overflow-hidden bg-gray-100 mb-3 relative">
                           {imgUrl && !imgError ? (
                             <>
                               {imgLoading && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gray-100 z-10">
                                   <Loader2 size={20} className="animate-spin text-gray-400" />
-                                  <span className="text-xs text-gray-400">{(cardImageRetries[i] ?? 0) > 0 ? 'Retrying…' : 'Generating…'}</span>
+                                  <span className="text-xs text-gray-400">{(weeklyImgRetries[wp.day] ?? 0) > 0 ? 'Retrying…' : 'Generating…'}</span>
                                 </div>
                               )}
                               <img
-                                src={imgUrl}
-                                alt="Post visual"
+                                src={imgUrl} alt="Post visual"
                                 className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoading ? 'opacity-0' : 'opacity-100'}`}
-                                onLoad={() => setCardImageLoading(prev => ({ ...prev, [i]: false }))}
-                                onError={() => handleCardImageError(i, rp)}
+                                onLoad={() => setWeeklyImgLoading(prev => ({ ...prev, [wp.day]: false }))}
+                                onError={() => handleWeeklyImageError(wp.day, wp)}
                               />
                             </>
                           ) : (
@@ -581,653 +680,210 @@ export default function ContentStudioPage() {
                             </div>
                           )}
                         </div>
-                        {/* Image actions */}
                         <button
-                          onClick={() => handleCardNewImage(i, rp)}
+                          onClick={() => handleWeeklyNewImage(wp.day, wp)}
                           disabled={imgLoading}
                           className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 mb-2"
                         >
-                          {imgLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-                          New image
+                          {imgLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} New image
                         </button>
                         <label className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 cursor-pointer">
-                          <Download size={11} />
-                          Upload your own
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            ref={el => { uploadRefs.current[i] = el }}
-                            onChange={e => { const f = e.target.files?.[0]; if (f) handleCardUpload(i, f) }}
-                          />
+                          <Download size={11} /> Upload your own
+                          <input type="file" accept="image/*" className="hidden" onChange={e => {
+                            const f = e.target.files?.[0]
+                            if (f) { const url = URL.createObjectURL(f); setWeeklyImages(prev => ({ ...prev, [wp.day]: url })); setWeeklyImgLoading(prev => ({ ...prev, [wp.day]: true })); setWeeklyImgError(prev => ({ ...prev, [wp.day]: false })) }
+                          }} />
                         </label>
                       </div>
 
-                      {/* Right: content */}
+                      {/* Content panel */}
                       <div className="flex-1 p-5">
-                        {/* Card header */}
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${style.badge}`}>
-                              {rp.categoryEmoji} {rp.categoryLabel}
+                              {wp.pillarEmoji} {wp.dayLabel} · {wp.pillar}
                             </span>
-                            <h3 className="text-sm font-semibold text-gray-900">{rp.headline}</h3>
+                            <h3 className="text-sm font-semibold text-gray-900">{wp.headline}</h3>
                           </div>
-                          <span className="text-xs text-gray-400 whitespace-nowrap ml-2 mt-0.5">{rp.tone}</span>
+                          <span className="text-xs text-gray-400 whitespace-nowrap ml-2">{wp.tone}</span>
                         </div>
-
-                        {/* Why it works */}
-                        <p className={`text-xs rounded-lg px-3 py-2 mb-4 leading-relaxed ${style.accent}`}>
-                          💡 {rp.reason}
-                        </p>
-
-                        {/* Platform tabs */}
+                        <p className={`text-xs rounded-lg px-3 py-2 mb-4 leading-relaxed ${style.accent}`}>💡 {wp.reason}</p>
                         <div className="flex items-center gap-2 mb-3">
                           <span className="text-xs text-gray-400 mr-1">Platform:</span>
-                          {platformTabs.map(pt => (
-                            <button
-                              key={pt.key}
-                              onClick={() => setCardPlatform(prev => ({ ...prev, [i]: pt.key }))}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                                activePlatform === pt.key
-                                  ? `${pt.color} text-white shadow-sm`
-                                  : 'border border-gray-200 text-gray-500 hover:bg-gray-50'
-                              }`}
-                            >
-                              {pt.abbr}
-                            </button>
+                          {PLATFORM_TABS.map(pt => (
+                            <button key={pt.key}
+                              onClick={() => setWeeklyPlatform(prev => ({ ...prev, [wp.day]: pt.key }))}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${activePlatform === pt.key ? `${pt.color} text-white shadow-sm` : 'border border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                            >{pt.abbr}</button>
                           ))}
                         </div>
-
-                        {/* Caption text (editable) */}
                         <Textarea
                           value={caption}
-                          onChange={e => setEditedCaptions(prev => ({
-                            ...prev,
-                            [i]: { ...(prev[i] ?? rp.captions), [activePlatform]: e.target.value }
-                          }))}
+                          onChange={e => setWeeklyCaptions(prev => ({ ...prev, [wp.day]: { ...(prev[wp.day] ?? wp.captions), [activePlatform]: e.target.value } }))}
                           rows={activePlatform === 'google_business' ? 3 : 5}
                           className="text-sm text-gray-700 leading-relaxed resize-none bg-gray-50 border-gray-200"
                         />
                         <div className="flex items-center justify-between mt-1.5">
                           <span className="text-xs text-gray-400">{caption.length} chars</span>
                           <button
-                            onClick={() => handleCardCopy(i, activePlatform)}
-                            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                              isCopied ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-700'
-                            }`}
+                            onClick={() => handleWeeklyCopy(wp.day, activePlatform)}
+                            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${isCopied ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-700'}`}
                           >
                             {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                            {isCopied ? 'Copied!' : `Copy ${platformTabs.find(p => p.key === activePlatform)?.label}`}
+                            {isCopied ? 'Copied!' : `Copy ${PLATFORM_TABS.find(p => p.key === activePlatform)?.label}`}
                           </button>
                         </div>
-
-                        {/* Footer: schedule + Google publish */}
-                        {(() => {
-                          const cardId = `pick-${i}`
-                          const caps = editedCaptions[i] ?? rp.captions
-                          const imgUrl = cardImages[i] ?? null
-                          const isScheduled = scheduled[cardId]
-                          const isGPosted = googlePosted[cardId]
-                          return (
-                            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
-                              <div className="flex items-center gap-2">
-                                {/* Schedule button */}
-                                {isScheduled ? (
-                                  <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
-                                    <Check size={11} /> Scheduled for {isScheduled}
-                                  </span>
-                                ) : scheduleOpen[cardId] ? (
-                                  <div className="flex items-center gap-2 flex-1">
-                                    <input
-                                      type="date"
-                                      min={todayISO}
-                                      value={scheduleDate[cardId] ?? todayISO}
-                                      onChange={e => setScheduleDate(prev => ({ ...prev, [cardId]: e.target.value }))}
-                                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                    />
-                                    <button
-                                      onClick={() => handleSchedule(cardId, { templateType: rp.templateType, promptData: rp.promptData, captions: caps, imageUrl: imgUrl })}
-                                      disabled={scheduling[cardId]}
-                                      className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                                    >
-                                      {scheduling[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-                                      Confirm
-                                    </button>
-                                    <button onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: false }))} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: true }))}
-                                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
-                                  >
-                                    <Calendar size={11} /> Schedule
-                                  </button>
-                                )}
-                                {/* Google Business publish */}
-                                {!scheduleOpen[cardId] && (
-                                  isGPosted ? (
-                                    <span className="flex items-center gap-1.5 text-xs text-orange-600 font-medium px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-200">
-                                      <Check size={11} /> Posted to Google
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={() => googleConnected
-                                        ? handleGooglePublish(cardId, { templateType: rp.templateType, promptData: rp.promptData, captions: caps, imageUrl: imgUrl })
-                                        : toast.error('Connect Google Business in Settings first.')}
-                                      disabled={googlePublishing[cardId]}
-                                      className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-                                        googleConnected
-                                          ? 'border-orange-300 text-orange-600 hover:bg-orange-50'
-                                          : 'border-gray-200 text-gray-400 cursor-not-allowed'
-                                      }`}
-                                    >
-                                      {googlePublishing[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
-                                      {googleConnected ? 'Post to Google' : 'Google (not connected)'}
-                                    </button>
-                                  )
-                                )}
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-400">
-                                  {TEMPLATES.find(t => t.type === rp.templateType)?.emoji}{' '}
-                                  {TEMPLATES.find(t => t.type === rp.templateType)?.label}
-                                </span>
-                                <span className="text-xs text-gray-400 flex items-center gap-1">
-                                  <PenLine size={10} /> Click caption to edit
-                                </span>
-                              </div>
-                            </div>
-                          )
-                        })()}
+                        {renderCardFooter(cardId, { templateType: wp.templateType, promptData: wp.promptData, captions: weeklyCaptions[wp.day] ?? wp.captions, imageUrl: imgUrl }, { emoji: tmpl?.emoji, label: tmpl?.label })}
                       </div>
                     </div>
                   </div>
                 )
               })}
-            </div>
-          ) : null}
-
-          {/* ── This Week view ── */}
-          {recView === 'week' && (
-            <div>
-              {loadingWeekly ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <Loader2 size={28} className="animate-spin text-blue-400" />
-                  <p className="text-sm text-gray-500">Building your week's content plan…</p>
-                  <p className="text-xs text-gray-400">This takes about 15 seconds</p>
-                </div>
-              ) : !weeklyLoaded ? (
-                <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
-                  <p className="text-2xl mb-3">📅</p>
-                  <p className="text-sm font-medium text-gray-700 mb-1">Your strategic weekly content plan</p>
-                  <p className="text-xs text-gray-500 mb-5">5 posts across Monday–Friday, each with a different strategic purpose</p>
-                  <button onClick={loadWeeklyContent} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors">
-                    Generate this week&apos;s plan
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  {/* Day selector strip */}
-                  <div className="grid grid-cols-5 gap-2 mb-6">
-                    {weeklyPosts.map(wp => {
-                      const isSelected = selectedDay === wp.day
-                      const pillarColors: Record<string, string> = {
-                        monday:    'border-violet-300 bg-violet-50',
-                        tuesday:   'border-amber-300 bg-amber-50',
-                        wednesday: 'border-sky-300 bg-sky-50',
-                        thursday:  'border-emerald-300 bg-emerald-50',
-                        friday:    'border-rose-300 bg-rose-50',
-                      }
-                      const selectedColors: Record<string, string> = {
-                        monday:    'border-violet-400 bg-violet-600 text-white shadow-lg shadow-violet-100',
-                        tuesday:   'border-amber-400 bg-amber-500 text-white shadow-lg shadow-amber-100',
-                        wednesday: 'border-sky-400 bg-sky-600 text-white shadow-lg shadow-sky-100',
-                        thursday:  'border-emerald-400 bg-emerald-600 text-white shadow-lg shadow-emerald-100',
-                        friday:    'border-rose-400 bg-rose-500 text-white shadow-lg shadow-rose-100',
-                      }
-                      return (
-                        <button
-                          key={wp.day}
-                          onClick={() => setSelectedDay(wp.day)}
-                          className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
-                            isSelected ? selectedColors[wp.day] : `${pillarColors[wp.day]} hover:opacity-80`
-                          }`}
-                        >
-                          <span className="text-lg">{wp.pillarEmoji}</span>
-                          <span className={`text-xs font-bold uppercase tracking-wide ${isSelected ? 'text-white' : 'text-gray-700'}`}>
-                            {wp.dayLabel.slice(0, 3)}
-                          </span>
-                          <span className={`text-xs leading-tight text-center ${isSelected ? 'text-white/90' : 'text-gray-500'}`}>
-                            {wp.pillar}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {/* Selected day's full post */}
-                  {weeklyPosts.filter(wp => wp.day === selectedDay).map(wp => {
-                    const imgUrl = weeklyImages[wp.day] ?? null
-                    const imgLoading = weeklyImgLoading[wp.day] ?? false
-                    const imgError = weeklyImgError[wp.day] ?? false
-                    const activePlatform = weeklyPlatform[wp.day] ?? 'instagram'
-                    const caption = weeklyCaptions[wp.day]?.[activePlatform] ?? wp.captions[activePlatform]
-                    const isCopied = weeklyCopied?.day === wp.day && weeklyCopied.platform === activePlatform
-                    const dayColors: Record<string, { bar: string; badge: string; accent: string }> = {
-                      monday:    { bar: 'bg-violet-500', badge: 'bg-violet-50 text-violet-700 border-violet-200', accent: 'text-violet-700 bg-violet-50' },
-                      tuesday:   { bar: 'bg-amber-500',  badge: 'bg-amber-50 text-amber-700 border-amber-200',   accent: 'text-amber-700 bg-amber-50'   },
-                      wednesday: { bar: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-200',         accent: 'text-sky-700 bg-sky-50'         },
-                      thursday:  { bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'text-emerald-700 bg-emerald-50' },
-                      friday:    { bar: 'bg-rose-500',   badge: 'bg-rose-50 text-rose-700 border-rose-200',      accent: 'text-rose-700 bg-rose-50'      },
-                    }
-                    const style = dayColors[wp.day] ?? dayColors.monday
-                    const platformTabs: { key: SocialPlatform; label: string; abbr: string; color: string }[] = [
-                      { key: 'instagram', label: 'Instagram', abbr: 'IG', color: 'bg-[#e1306c]' },
-                      { key: 'facebook', label: 'Facebook', abbr: 'FB', color: 'bg-[#1877f2]' },
-                      { key: 'google_business', label: 'Google Business', abbr: 'G', color: 'bg-[#f97316]' },
-                    ]
-                    return (
-                      <div key={wp.day} className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
-                        <div className={`h-1 ${style.bar}`} />
-                        <div className="flex">
-                          {/* Left: image */}
-                          <div className="w-52 flex-shrink-0 p-4 border-r border-gray-100 flex flex-col">
-                            <div className="aspect-square w-full rounded-xl overflow-hidden bg-gray-100 mb-3 relative">
-                              {imgUrl && !imgError ? (
-                                <>
-                                  {imgLoading && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gray-100 z-10">
-                                      <Loader2 size={20} className="animate-spin text-gray-400" />
-                                      <span className="text-xs text-gray-400">{(weeklyImgRetries[wp.day] ?? 0) > 0 ? 'Retrying…' : 'Generating…'}</span>
-                                    </div>
-                                  )}
-                                  <img
-                                    src={imgUrl}
-                                    alt="Post visual"
-                                    className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoading ? 'opacity-0' : 'opacity-100'}`}
-                                    onLoad={() => setWeeklyImgLoading(prev => ({ ...prev, [wp.day]: false }))}
-                                    onError={() => handleWeeklyImageError(wp.day, wp)}
-                                  />
-                                </>
-                              ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 p-3 text-center">
-                                  <span className="text-2xl">🖼️</span>
-                                  <span className="text-xs text-gray-400">{imgError ? 'Failed to load' : 'No image yet'}</span>
-                                </div>
-                              )}
-                            </div>
-                            <button
-                              onClick={() => handleWeeklyNewImage(wp.day, wp)}
-                              disabled={imgLoading}
-                              className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 mb-2"
-                            >
-                              {imgLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-                              New image
-                            </button>
-                            <label className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 cursor-pointer">
-                              <Download size={11} />
-                              Upload your own
-                              <input type="file" accept="image/*" className="hidden"
-                                onChange={e => {
-                                  const f = e.target.files?.[0]
-                                  if (f) {
-                                    const url = URL.createObjectURL(f)
-                                    setWeeklyImages(prev => ({ ...prev, [wp.day]: url }))
-                                    setWeeklyImgLoading(prev => ({ ...prev, [wp.day]: true }))
-                                    setWeeklyImgError(prev => ({ ...prev, [wp.day]: false }))
-                                  }
-                                }}
-                              />
-                            </label>
-                          </div>
-
-                          {/* Right: content */}
-                          <div className="flex-1 p-5">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${style.badge}`}>
-                                  {wp.pillarEmoji} {wp.dayLabel} · {wp.pillar}
-                                </span>
-                                <h3 className="text-sm font-semibold text-gray-900">{wp.headline}</h3>
-                              </div>
-                              <span className="text-xs text-gray-400 whitespace-nowrap ml-2 mt-0.5">{wp.tone}</span>
-                            </div>
-                            <p className={`text-xs rounded-lg px-3 py-2 mb-4 leading-relaxed ${style.accent}`}>
-                              💡 {wp.reason}
-                            </p>
-                            <div className="flex items-center gap-2 mb-3">
-                              <span className="text-xs text-gray-400 mr-1">Platform:</span>
-                              {platformTabs.map(pt => (
-                                <button
-                                  key={pt.key}
-                                  onClick={() => setWeeklyPlatform(prev => ({ ...prev, [wp.day]: pt.key }))}
-                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                                    activePlatform === pt.key
-                                      ? `${pt.color} text-white shadow-sm`
-                                      : 'border border-gray-200 text-gray-500 hover:bg-gray-50'
-                                  }`}
-                                >
-                                  {pt.abbr}
-                                </button>
-                              ))}
-                            </div>
-                            <Textarea
-                              value={caption}
-                              onChange={e => setWeeklyCaptions(prev => ({
-                                ...prev,
-                                [wp.day]: { ...(prev[wp.day] ?? wp.captions), [activePlatform]: e.target.value }
-                              }))}
-                              rows={activePlatform === 'google_business' ? 3 : 5}
-                              className="text-sm text-gray-700 leading-relaxed resize-none bg-gray-50 border-gray-200"
-                            />
-                            <div className="flex items-center justify-between mt-1.5">
-                              <span className="text-xs text-gray-400">{caption.length} chars</span>
-                              <button
-                                onClick={() => handleWeeklyCopy(wp.day, activePlatform)}
-                                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                                  isCopied ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-700'
-                                }`}
-                              >
-                                {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                                {isCopied ? 'Copied!' : `Copy ${platformTabs.find(p => p.key === activePlatform)?.label}`}
-                              </button>
-                            </div>
-                            {/* Footer: schedule + Google publish */}
-                            {(() => {
-                              const cardId = `week-${wp.day}`
-                              const caps = weeklyCaptions[wp.day] ?? wp.captions
-                              const imgUrl = weeklyImages[wp.day] ?? null
-                              const isScheduled = scheduled[cardId]
-                              const isGPosted = googlePosted[cardId]
-                              return (
-                                <div className="mt-3 pt-3 border-t border-gray-100 flex flex-col gap-2">
-                                  <div className="flex items-center gap-2">
-                                    {isScheduled ? (
-                                      <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium px-3 py-1.5 bg-green-50 rounded-lg border border-green-200">
-                                        <Check size={11} /> Scheduled for {isScheduled}
-                                      </span>
-                                    ) : scheduleOpen[cardId] ? (
-                                      <div className="flex items-center gap-2 flex-1">
-                                        <input
-                                          type="date"
-                                          min={todayISO}
-                                          value={scheduleDate[cardId] ?? todayISO}
-                                          onChange={e => setScheduleDate(prev => ({ ...prev, [cardId]: e.target.value }))}
-                                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                        />
-                                        <button
-                                          onClick={() => handleSchedule(cardId, { templateType: wp.templateType, promptData: wp.promptData, captions: caps, imageUrl: imgUrl })}
-                                          disabled={scheduling[cardId]}
-                                          className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
-                                        >
-                                          {scheduling[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-                                          Confirm
-                                        </button>
-                                        <button onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: false }))} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-                                      </div>
-                                    ) : (
-                                      <button
-                                        onClick={() => setScheduleOpen(prev => ({ ...prev, [cardId]: true }))}
-                                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50"
-                                      >
-                                        <Calendar size={11} /> Schedule
-                                      </button>
-                                    )}
-                                    {!scheduleOpen[cardId] && (
-                                      isGPosted ? (
-                                        <span className="flex items-center gap-1.5 text-xs text-orange-600 font-medium px-3 py-1.5 bg-orange-50 rounded-lg border border-orange-200">
-                                          <Check size={11} /> Posted to Google
-                                        </span>
-                                      ) : (
-                                        <button
-                                          onClick={() => googleConnected
-                                            ? handleGooglePublish(cardId, { templateType: wp.templateType, promptData: wp.promptData, captions: caps, imageUrl: imgUrl })
-                                            : toast.error('Connect Google Business in Settings first.')}
-                                          disabled={googlePublishing[cardId]}
-                                          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-                                            googleConnected
-                                              ? 'border-orange-300 text-orange-600 hover:bg-orange-50'
-                                              : 'border-gray-200 text-gray-400 cursor-not-allowed'
-                                          }`}
-                                        >
-                                          {googlePublishing[cardId] ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />}
-                                          {googleConnected ? 'Post to Google' : 'Google (not connected)'}
-                                        </button>
-                                      )
-                                    )}
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs text-gray-400">
-                                      {TEMPLATES.find(t => t.type === wp.templateType)?.emoji}{' '}
-                                      {TEMPLATES.find(t => t.type === wp.templateType)?.label}
-                                    </span>
-                                    <span className="text-xs text-gray-400 flex items-center gap-1">
-                                      <PenLine size={10} /> Click caption to edit
-                                    </span>
-                                  </div>
-                                </div>
-                              )
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
           )}
         </div>
       )}
 
-      {/* Create Tab */}
+      {/* ── Create a Post Tab ── */}
       {activeTab === 'create' && (
-      <div>
-      {/* Template Picker */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        {TEMPLATES.map(t => (
-          <button
-            key={t.type}
-            onClick={() => { setSelectedTemplate(t.type); setFormData({}) }}
-            className={`text-left border rounded-xl p-4 transition-all cursor-pointer ${
-              selectedTemplate === t.type
-                ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200'
-                : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <div className="text-2xl mb-2">{t.emoji}</div>
-            <div className={`font-semibold text-sm mb-1 ${selectedTemplate === t.type ? 'text-blue-700' : 'text-gray-900'}`}>{t.label}</div>
-            <div className="text-xs text-gray-500">{t.desc}</div>
-          </button>
-        ))}
-      </div>
-
-      {/* Form */}
-      {selectedTemplate && (
-        <div className="border border-gray-200 rounded-xl p-5 bg-gray-50 mb-6">
-          <div className="text-sm font-semibold text-gray-900 mb-4">
-            {TEMPLATES.find(t => t.type === selectedTemplate)?.emoji} {TEMPLATES.find(t => t.type === selectedTemplate)?.label} — Tell us a little more
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            {FORM_FIELDS[selectedTemplate].map(field => (
-              <div key={field.key} className={field.textarea ? 'col-span-2' : ''}>
-                <Label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">{field.label}</Label>
-                {field.textarea ? (
-                  <Textarea
-                    placeholder={field.placeholder}
-                    value={formData[field.key] ?? ''}
-                    onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    rows={3}
-                    className="resize-none"
-                  />
-                ) : (
-                  <Input
-                    placeholder={field.placeholder}
-                    value={formData[field.key] ?? ''}
-                    onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
-                  />
-                )}
-              </div>
+        <div>
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {TEMPLATES.map(t => (
+              <button key={t.type}
+                onClick={() => { setSelectedTemplate(t.type); setFormData({}) }}
+                className={`text-left border rounded-xl p-4 transition-all cursor-pointer ${selectedTemplate === t.type ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}`}
+              >
+                <div className="text-2xl mb-2">{t.emoji}</div>
+                <div className={`font-semibold text-sm mb-1 ${selectedTemplate === t.type ? 'text-blue-700' : 'text-gray-900'}`}>{t.label}</div>
+                <div className="text-xs text-gray-500">{t.desc}</div>
+              </button>
             ))}
           </div>
-          <div className="mb-4">
-            <Label className="text-xs text-gray-500 uppercase tracking-wide mb-2 block">
-              Tone
-            </Label>
-            <div className="flex flex-wrap gap-2">
-              {PRESET_TONES.map(t => (
-                <button
-                  key={t}
-                  onClick={() => setTone(t)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                    tone === t ? 'border-blue-500 text-blue-600 bg-white' : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-              <button
-                onClick={() => setTone('Custom')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                  tone === 'Custom' ? 'border-blue-500 text-blue-600 bg-white' : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                }`}
-              >
-                + Custom
-              </button>
-            </div>
-            {tone === 'Custom' && (
-              <Input
-                className="mt-2"
-                placeholder="Describe your tone (e.g. conversational but authoritative, warm and empathetic...)"
-                value={customTone}
-                onChange={e => setCustomTone(e.target.value)}
-              />
-            )}
-          </div>
-          <Button onClick={handleGenerate} disabled={generating} className="flex items-center gap-2">
-            {generating ? <Loader2 size={16} className="animate-spin" /> : '✨'}
-            {generating ? 'Generating your post...' : 'Generate post'}
-          </Button>
-        </div>
-      )}
 
-      {/* Generated Result */}
-      {post && (
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 bg-white flex items-center justify-between">
-            <span className="font-semibold text-gray-900">Your post is ready ✨</span>
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${post.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-              {post.status === 'published' ? '✓ Published' : 'Draft'}
-            </span>
-          </div>
-          <div className="flex min-h-[520px]">
-            {/* Left: image */}
-            <div className="w-64 flex-shrink-0 p-5 border-r border-gray-100 flex flex-col">
-              {post.image_url && !imageError ? (
-                <div className="relative aspect-square w-full rounded-xl mb-3 overflow-hidden bg-gray-100">
-                  {imageLoading && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-100">
-                      <Loader2 className="animate-spin text-gray-400" size={24} />
-                      <span className="text-xs text-gray-400">Generating image…</span>
-                    </div>
-                  )}
-                  <img
-                    src={post.image_url}
-                    alt="Generated post"
-                    className={`aspect-square w-full object-cover rounded-xl transition-opacity duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
-                    onLoad={() => setImageLoading(false)}
-                    onError={() => { setImageLoading(false); setImageError(true) }}
-                  />
-                </div>
-              ) : (
-                <div className="aspect-square w-full bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl mb-3 flex flex-col items-center justify-center gap-2 text-center px-3">
-                  <span className="text-2xl">🖼️</span>
-                  <span className="text-xs text-gray-500">{imageError ? 'Image failed to load' : 'No image generated'}</span>
-                  <span className="text-xs text-gray-400">Click "New image" to retry</span>
-                </div>
-              )}
-              <div className="flex gap-2 mb-3">
-                <a
-                  href={post.image_url ?? '#'}
-                  download="post-image.png"
-                  className="flex-1 border border-gray-200 rounded-lg py-1.5 text-center text-xs text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1"
-                >
-                  <Download size={12} /> Download
-                </a>
-                <button
-                  onClick={handleRegenerateImage}
-                  disabled={regenImageLoading}
-                  className="flex-1 border border-gray-200 rounded-lg py-1.5 text-center text-xs text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1"
-                >
-                  {regenImageLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                  New image
-                </button>
+          {selectedTemplate && (
+            <div className="border border-gray-200 rounded-xl p-5 bg-gray-50 mb-6">
+              <div className="text-sm font-semibold text-gray-900 mb-4">
+                {TEMPLATES.find(t => t.type === selectedTemplate)?.emoji} {TEMPLATES.find(t => t.type === selectedTemplate)?.label} — Tell us a little more
               </div>
-              {/* Google auto-post — configured in Settings */}
-              <div className="mt-auto pt-3 border-t border-gray-100">
-                <p className="text-xs text-gray-400">Google Business auto-post can be enabled in <a href="/dashboard/settings" className="text-blue-500 hover:underline">Settings</a>.</p>
-              </div>
-            </div>
-
-            {/* Right: captions */}
-            <div className="flex-1 p-5 overflow-y-auto flex flex-col gap-4">
-              {(Object.keys(PLATFORM_CONFIG) as SocialPlatform[]).map(platform => {
-                const cfg = PLATFORM_CONFIG[platform]
-                return (
-                  <div key={platform} className={`border rounded-xl overflow-hidden ${cfg.border}`}>
-                    <div className={`${cfg.bg} px-4 py-2.5 flex items-center justify-between`}>
-                      <div className="flex items-center gap-2">
-                        <span className={`${cfg.badgeBg} text-white text-xs px-2 py-0.5 rounded font-semibold`}>{cfg.abbr}</span>
-                        <span className="text-sm font-semibold text-gray-900">{cfg.label}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleRegenerateCaption(platform)}
-                          disabled={regenLoading === platform}
-                          className={`border ${cfg.regenBorder} ${cfg.regenText} text-xs px-3 py-1.5 rounded-md font-medium flex items-center gap-1 hover:opacity-80`}
-                        >
-                          {regenLoading === platform ? <Loader2 size={11} className="animate-spin" /> : '✨'}
-                          Regenerate
-                        </button>
-                        <button
-                          onClick={() => handleCopy(platform)}
-                          className={`${cfg.badgeBg} text-white text-xs px-3 py-1.5 rounded-md font-medium flex items-center gap-1`}
-                        >
-                          {copied === platform ? <Check size={11} /> : <Copy size={11} />}
-                          {copied === platform ? 'Copied!' : 'Copy'}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="px-4 py-3">
-                      <Textarea
-                        value={captions[platform]}
-                        onChange={e => setCaptions(prev => ({ ...prev, [platform]: e.target.value }))}
-                        className="text-xs text-gray-700 leading-relaxed resize-none border-gray-200 bg-white"
-                        rows={platform === 'google_business' ? 3 : 5}
-                      />
-                      <div className="text-right text-xs text-gray-400 mt-1">
-                        {captions[platform].length} chars
-                      </div>
-                    </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                {FORM_FIELDS[selectedTemplate].map(field => (
+                  <div key={field.key} className={field.textarea ? 'col-span-2' : ''}>
+                    <Label className="text-xs text-gray-500 uppercase tracking-wide mb-1 block">{field.label}</Label>
+                    {field.textarea ? (
+                      <Textarea placeholder={field.placeholder} value={formData[field.key] ?? ''} onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))} rows={3} className="resize-none" />
+                    ) : (
+                      <Input placeholder={field.placeholder} value={formData[field.key] ?? ''} onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))} />
+                    )}
                   </div>
-                )
-              })}
-
-              {/* Publish button */}
-              <Button
-                onClick={handlePublish}
-                disabled={publishing || post.status === 'published'}
-                className="w-full py-3 text-sm"
-              >
-                {publishing ? <Loader2 size={16} className="animate-spin mr-2" /> : '🚀 '}
-                {post.status === 'published' ? 'Published' : publishing ? 'Publishing...' : 'Publish — Post to Google Business + Copy others'}
+                ))}
+              </div>
+              <div className="mb-4">
+                <Label className="text-xs text-gray-500 uppercase tracking-wide mb-2 block">Tone</Label>
+                <div className="flex flex-wrap gap-2">
+                  {PRESET_TONES.map(t => (
+                    <button key={t} onClick={() => setTone(t)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${tone === t ? 'border-blue-500 text-blue-600 bg-white' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                    >{t}</button>
+                  ))}
+                  <button onClick={() => setTone('Custom')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${tone === 'Custom' ? 'border-blue-500 text-blue-600 bg-white' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                  >+ Custom</button>
+                </div>
+                {tone === 'Custom' && (
+                  <Input className="mt-2" placeholder="Describe your tone (e.g. conversational but authoritative...)" value={customTone} onChange={e => setCustomTone(e.target.value)} />
+                )}
+              </div>
+              <Button onClick={handleGenerate} disabled={generating} className="flex items-center gap-2">
+                {generating ? <Loader2 size={16} className="animate-spin" /> : '✨'}
+                {generating ? 'Generating your post...' : 'Generate post'}
               </Button>
             </div>
-          </div>
+          )}
+
+          {post && (
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 bg-white flex items-center justify-between">
+                <span className="font-semibold text-gray-900">Your post is ready ✨</span>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${post.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                  {post.status === 'published' ? '✓ Published' : 'Draft'}
+                </span>
+              </div>
+              <div className="flex min-h-[520px]">
+                <div className="w-64 flex-shrink-0 p-5 border-r border-gray-100 flex flex-col">
+                  {post.image_url && !imageError ? (
+                    <div className="relative aspect-square w-full rounded-xl mb-3 overflow-hidden bg-gray-100">
+                      {imageLoading && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-100">
+                          <Loader2 className="animate-spin text-gray-400" size={24} />
+                          <span className="text-xs text-gray-400">Generating image…</span>
+                        </div>
+                      )}
+                      <img src={post.image_url} alt="Generated post"
+                        className={`aspect-square w-full object-cover rounded-xl transition-opacity duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                        onLoad={() => setImageLoading(false)}
+                        onError={() => { setImageLoading(false); setImageError(true) }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="aspect-square w-full bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl mb-3 flex flex-col items-center justify-center gap-2 text-center px-3">
+                      <span className="text-2xl">🖼️</span>
+                      <span className="text-xs text-gray-500">{imageError ? 'Image failed to load' : 'No image generated'}</span>
+                      <span className="text-xs text-gray-400">Click &quot;New image&quot; to retry</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2 mb-3">
+                    <a href={post.image_url ?? '#'} download="post-image.png"
+                      className="flex-1 border border-gray-200 rounded-lg py-1.5 text-center text-xs text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1">
+                      <Download size={12} /> Download
+                    </a>
+                    <button onClick={handleRegenerateImage} disabled={regenImageLoading}
+                      className="flex-1 border border-gray-200 rounded-lg py-1.5 text-center text-xs text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1">
+                      {regenImageLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} New image
+                    </button>
+                  </div>
+                  <div className="mt-auto pt-3 border-t border-gray-100">
+                    <p className="text-xs text-gray-400">Google Business auto-post can be enabled in <a href="/dashboard/settings" className="text-blue-500 hover:underline">Settings</a>.</p>
+                  </div>
+                </div>
+                <div className="flex-1 p-5 overflow-y-auto flex flex-col gap-4">
+                  {(Object.keys(PLATFORM_CONFIG) as SocialPlatform[]).map(platform => {
+                    const cfg = PLATFORM_CONFIG[platform]
+                    return (
+                      <div key={platform} className={`border rounded-xl overflow-hidden ${cfg.border}`}>
+                        <div className={`${cfg.bg} px-4 py-2.5 flex items-center justify-between`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`${cfg.badgeBg} text-white text-xs px-2 py-0.5 rounded font-semibold`}>{cfg.abbr}</span>
+                            <span className="text-sm font-semibold text-gray-900">{cfg.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => handleRegenerateCaption(platform)} disabled={regenLoading === platform}
+                              className={`border ${cfg.regenBorder} ${cfg.regenText} text-xs px-3 py-1.5 rounded-md font-medium flex items-center gap-1 hover:opacity-80`}>
+                              {regenLoading === platform ? <Loader2 size={11} className="animate-spin" /> : '✨'} Regenerate
+                            </button>
+                            <button onClick={() => handleCopy(platform)}
+                              className={`${cfg.badgeBg} text-white text-xs px-3 py-1.5 rounded-md font-medium flex items-center gap-1`}>
+                              {copied === platform ? <Check size={11} /> : <Copy size={11} />}
+                              {copied === platform ? 'Copied!' : 'Copy'}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="px-4 py-3">
+                          <Textarea value={captions[platform]} onChange={e => setCaptions(prev => ({ ...prev, [platform]: e.target.value }))}
+                            className="text-xs text-gray-700 leading-relaxed resize-none border-gray-200 bg-white" rows={platform === 'google_business' ? 3 : 5} />
+                          <div className="text-right text-xs text-gray-400 mt-1">{captions[platform].length} chars</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <Button onClick={handlePublish} disabled={publishing || post.status === 'published'} className="w-full py-3 text-sm">
+                    {publishing ? <Loader2 size={16} className="animate-spin mr-2" /> : '🚀 '}
+                    {post.status === 'published' ? 'Published' : publishing ? 'Publishing...' : 'Publish — Post to Google Business + Copy others'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-      </div>
       )}
     </div>
   )
