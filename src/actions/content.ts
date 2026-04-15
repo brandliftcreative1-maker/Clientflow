@@ -324,6 +324,31 @@ export async function regenerateCaption(
   }
 }
 
+// ---- Regenerate Weekly Caption (no DB post — for This Week cards) ----
+
+export async function regenerateWeeklyCaption(
+  templateType: string,
+  promptData: Record<string, string>,
+  platform: SocialPlatform
+): Promise<{ caption: string | null; error?: string }> {
+  const { user, account } = await getAccountAndUser()
+  if (!user || !account) return { caption: null, error: 'Not authenticated' }
+
+  try {
+    const caption = await regeneratePlatformCaption({
+      platform,
+      templateType: templateType as SocialTemplateType,
+      promptData,
+      businessName: account.business_name,
+      industry: account.industry,
+      brandVoice: account.brand_voice,
+    })
+    return { caption }
+  } catch (err) {
+    return { caption: null, error: err instanceof Error ? err.message : 'Regeneration failed' }
+  }
+}
+
 // ---- Regenerate Image ----
 
 // Direct version — works even if DB isn't set up (no DB lookup needed)
