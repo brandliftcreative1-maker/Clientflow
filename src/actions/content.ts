@@ -488,6 +488,18 @@ export async function publishPost(
 
 // ---- Delete Post ----
 
+export async function markPostPublished(postId: string): Promise<{ error?: string }> {
+  const { user, account, supabase } = await getAccountAndUser()
+  if (!user || !account) return { error: 'Not authenticated' }
+  const { error } = await supabase
+    .from('content_posts')
+    .update({ status: 'published' })
+    .eq('id', postId)
+    .eq('account_id', account.id)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function deletePost(postId: string): Promise<{ error?: string }> {
   const { user, account, supabase } = await getAccountAndUser()
   if (!user || !account) return { error: 'Not authenticated' }

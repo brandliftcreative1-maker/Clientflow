@@ -26,6 +26,7 @@ import {
   publishReadyPost,
   getGoogleConnectionStatus,
   deletePost,
+  markPostPublished,
   type ContentPost,
   type WeeklyPost,
 } from '@/actions/content'
@@ -121,6 +122,7 @@ export default function ContentStudioPage() {
   const [myPostCopied, setMyPostCopied] = useState<{ postId: string; platform: SocialPlatform } | null>(null)
   const [expandedCaption, setExpandedCaption] = useState<{ postId: string; platform: string } | null>(null)
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null)
+  const [markingPostedId, setMarkingPostedId] = useState<string | null>(null)
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [postsPage, setPostsPage] = useState(1)
@@ -190,6 +192,14 @@ export default function ContentStudioPage() {
     setMyPosts(result.posts)
     setMyPostsLoaded(true)
     setLoadingMyPosts(false)
+  }
+
+  const handleMarkPosted = async (postId: string) => {
+    setMarkingPostedId(postId)
+    const { error } = await markPostPublished(postId)
+    if (error) toast.error(error)
+    else setMyPosts(prev => prev.map(p => p.id === postId ? { ...p, status: 'published' } : p))
+    setMarkingPostedId(null)
   }
 
   const handleDeletePost = async (postId: string) => {
@@ -728,6 +738,16 @@ export default function ContentStudioPage() {
                             </button>
                           )
                         })}
+                        {p.status === 'scheduled' && (
+                          <button
+                            onClick={() => handleMarkPosted(p.id)}
+                            disabled={markingPostedId === p.id}
+                            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-60 transition-colors"
+                          >
+                            {markingPostedId === p.id ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                            Mark as posted
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDeletePost(p.id)}
                           disabled={deletingPostId === p.id}
