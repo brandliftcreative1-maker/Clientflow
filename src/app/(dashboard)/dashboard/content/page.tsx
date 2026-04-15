@@ -736,34 +736,33 @@ export default function ContentStudioPage() {
                 const imgUrl = weeklyImages[wp.day] ?? null
                 const imgLoading = weeklyImgLoading[wp.day] ?? false
                 const imgError = weeklyImgError[wp.day] ?? false
-                const activePlatform = weeklyPlatform[wp.day] ?? 'instagram'
-                const caption = weeklyCaptions[wp.day]?.[activePlatform] ?? wp.captions[activePlatform]
-                const isCopied = weeklyCopied?.day === wp.day && weeklyCopied.platform === activePlatform
                 const cardId = `week-${wp.day}`
-                const dayAccent: Record<string, { bar: string; badge: string; accent: string }> = {
-                  monday:    { bar: 'bg-violet-500', badge: 'bg-violet-50 text-violet-700 border-violet-200', accent: 'text-violet-700 bg-violet-50' },
-                  tuesday:   { bar: 'bg-amber-500',  badge: 'bg-amber-50 text-amber-700 border-amber-200',   accent: 'text-amber-700 bg-amber-50'   },
-                  wednesday: { bar: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-200',         accent: 'text-sky-700 bg-sky-50'         },
-                  thursday:  { bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'text-emerald-700 bg-emerald-50' },
-                  friday:    { bar: 'bg-rose-500',   badge: 'bg-rose-50 text-rose-700 border-rose-200',      accent: 'text-rose-700 bg-rose-50'      },
-                  saturday:  { bar: 'bg-teal-500',   badge: 'bg-teal-50 text-teal-700 border-teal-200',      accent: 'text-teal-700 bg-teal-50'      },
-                  sunday:    { bar: 'bg-indigo-500', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', accent: 'text-indigo-700 bg-indigo-50' },
+                const dayAccent: Record<string, { bar: string; badge: string; accent: string; platHeader: string }> = {
+                  monday:    { bar: 'bg-violet-500', badge: 'bg-violet-50 text-violet-700 border-violet-200', accent: 'text-violet-700 bg-violet-50', platHeader: 'bg-violet-50 border-b border-violet-100' },
+                  tuesday:   { bar: 'bg-amber-500',  badge: 'bg-amber-50 text-amber-700 border-amber-200',   accent: 'text-amber-700 bg-amber-50',   platHeader: 'bg-amber-50 border-b border-amber-100'   },
+                  wednesday: { bar: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-200',         accent: 'text-sky-700 bg-sky-50',         platHeader: 'bg-sky-50 border-b border-sky-100'         },
+                  thursday:  { bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', accent: 'text-emerald-700 bg-emerald-50', platHeader: 'bg-emerald-50 border-b border-emerald-100' },
+                  friday:    { bar: 'bg-rose-500',   badge: 'bg-rose-50 text-rose-700 border-rose-200',      accent: 'text-rose-700 bg-rose-50',      platHeader: 'bg-rose-50 border-b border-rose-100'      },
+                  saturday:  { bar: 'bg-teal-500',   badge: 'bg-teal-50 text-teal-700 border-teal-200',      accent: 'text-teal-700 bg-teal-50',      platHeader: 'bg-teal-50 border-b border-teal-100'      },
+                  sunday:    { bar: 'bg-indigo-500', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', accent: 'text-indigo-700 bg-indigo-50', platHeader: 'bg-indigo-50 border-b border-indigo-100' },
                 }
                 const style = dayAccent[wp.day] ?? dayAccent.monday
                 const tmpl = TEMPLATES.find(t => t.type === wp.templateType)
                 return (
                   <div key={wp.day} className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
                     <div className={`h-1 ${style.bar}`} />
-                    <div className="flex">
-                      {/* Image panel */}
-                      <div className="w-52 flex-shrink-0 p-4 border-r border-gray-100 flex flex-col">
-                        <div className="aspect-square w-full rounded-xl overflow-hidden bg-gray-100 mb-3 relative">
+
+                    {/* ── Zone 1: Info strip ── */}
+                    <div className="flex gap-4 p-4 border-b border-gray-100">
+                      {/* Compact image */}
+                      <div className="flex-shrink-0 flex flex-col gap-1.5">
+                        <div className="w-24 h-24 rounded-xl overflow-hidden bg-gray-100 relative">
                           {imgUrl && !imgError ? (
                             <>
                               {imgLoading && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-gray-100 z-10">
-                                  <Loader2 size={20} className="animate-spin text-gray-400" />
-                                  <span className="text-xs text-gray-400">{(weeklyImgRetries[wp.day] ?? 0) > 0 ? 'Retrying…' : 'Generating…'}</span>
+                                  <Loader2 size={16} className="animate-spin text-gray-400" />
+                                  <span className="text-xs text-gray-400">{(weeklyImgRetries[wp.day] ?? 0) > 0 ? 'Retrying…' : 'Loading…'}</span>
                                 </div>
                               )}
                               <img
@@ -774,67 +773,92 @@ export default function ContentStudioPage() {
                               />
                             </>
                           ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 p-3 text-center">
-                              <span className="text-2xl">🖼️</span>
-                              <span className="text-xs text-gray-400">{imgError ? 'Failed to load' : 'No image yet'}</span>
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+                              <span className="text-xl">🖼️</span>
+                              <span className="text-xs text-gray-400 text-center">{imgError ? 'Failed' : 'No image'}</span>
                             </div>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleWeeklyNewImage(wp.day, wp)}
-                          disabled={imgLoading}
-                          className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 mb-2"
-                        >
-                          {imgLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} New image
-                        </button>
-                        <label className="flex items-center justify-center gap-1.5 border border-gray-200 rounded-lg py-1.5 text-xs text-gray-600 hover:bg-gray-50 cursor-pointer">
-                          <Download size={11} /> Upload your own
-                          <input type="file" accept="image/*" className="hidden" onChange={e => {
-                            const f = e.target.files?.[0]
-                            if (f) { const url = URL.createObjectURL(f); setWeeklyImages(prev => ({ ...prev, [wp.day]: url })); setWeeklyImgLoading(prev => ({ ...prev, [wp.day]: true })); setWeeklyImgError(prev => ({ ...prev, [wp.day]: false })) }
-                          }} />
-                        </label>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleWeeklyNewImage(wp.day, wp)}
+                            disabled={imgLoading}
+                            title="New image"
+                            className="flex-1 flex items-center justify-center gap-1 border border-gray-200 rounded-lg py-1 text-xs text-gray-500 hover:bg-gray-50"
+                          >
+                            {imgLoading ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                            <span>New</span>
+                          </button>
+                          <label title="Upload your own" className="flex-1 flex items-center justify-center gap-1 border border-gray-200 rounded-lg py-1 text-xs text-gray-500 hover:bg-gray-50 cursor-pointer">
+                            <Download size={10} /><span>Upload</span>
+                            <input type="file" accept="image/*" className="hidden" onChange={e => {
+                              const f = e.target.files?.[0]
+                              if (f) { const url = URL.createObjectURL(f); setWeeklyImages(prev => ({ ...prev, [wp.day]: url })); setWeeklyImgLoading(prev => ({ ...prev, [wp.day]: true })); setWeeklyImgError(prev => ({ ...prev, [wp.day]: false })) }
+                            }} />
+                          </label>
+                        </div>
                       </div>
 
-                      {/* Content panel */}
-                      <div className="flex-1 p-5">
-                        <div className="flex items-start justify-between mb-3">
+                      {/* Metadata */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border ${style.badge}`}>
                               {wp.pillarEmoji} {wp.dayLabel} · {wp.pillar}
                             </span>
-                            <h3 className="text-sm font-semibold text-gray-900">{wp.headline}</h3>
+                            <span className="text-xs text-gray-400">{wp.tone}</span>
                           </div>
-                          <span className="text-xs text-gray-400 whitespace-nowrap ml-2">{wp.tone}</span>
+                          <span className="text-xs text-gray-400 whitespace-nowrap ml-2">{tmpl?.emoji} {tmpl?.label}</span>
                         </div>
-                        <p className={`text-xs rounded-lg px-3 py-2 mb-4 leading-relaxed ${style.accent}`}>💡 {wp.reason}</p>
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="text-xs text-gray-400 mr-1">Platform:</span>
-                          {PLATFORM_TABS.map(pt => (
-                            <button key={pt.key}
-                              onClick={() => setWeeklyPlatform(prev => ({ ...prev, [wp.day]: pt.key }))}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${activePlatform === pt.key ? `${pt.color} text-white shadow-sm` : 'border border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                            >{pt.abbr}</button>
-                          ))}
-                        </div>
-                        <Textarea
-                          value={caption}
-                          onChange={e => setWeeklyCaptions(prev => ({ ...prev, [wp.day]: { ...(prev[wp.day] ?? wp.captions), [activePlatform]: e.target.value } }))}
-                          rows={activePlatform === 'google_business' ? 3 : 5}
-                          className="text-sm text-gray-700 leading-relaxed resize-none bg-gray-50 border-gray-200"
-                        />
-                        <div className="flex items-center justify-between mt-1.5">
-                          <span className="text-xs text-gray-400">{caption.length} chars</span>
-                          <button
-                            onClick={() => handleWeeklyCopy(wp.day, activePlatform)}
-                            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${isCopied ? 'bg-green-100 text-green-700' : 'bg-gray-900 text-white hover:bg-gray-700'}`}
-                          >
-                            {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                            {isCopied ? 'Copied!' : `Copy ${PLATFORM_TABS.find(p => p.key === activePlatform)?.label}`}
-                          </button>
-                        </div>
-                        {renderCardFooter(cardId, { templateType: wp.templateType, promptData: wp.promptData, captions: weeklyCaptions[wp.day] ?? wp.captions, imageUrl: imgUrl }, { emoji: tmpl?.emoji, label: tmpl?.label })}
+                        <h3 className="text-sm font-semibold text-gray-900 mb-2">{wp.headline}</h3>
+                        <p className={`text-xs rounded-lg px-3 py-2 leading-relaxed ${style.accent}`}>💡 {wp.reason}</p>
                       </div>
+                    </div>
+
+                    {/* ── Zone 2: Platform columns ── */}
+                    <div className="grid grid-cols-3 divide-x divide-gray-100">
+                      {PLATFORM_TABS.map(pt => {
+                        const platCaption = weeklyCaptions[wp.day]?.[pt.key] ?? wp.captions[pt.key]
+                        const platCopied = weeklyCopied?.day === wp.day && weeklyCopied.platform === pt.key
+                        return (
+                          <div key={pt.key} className="flex flex-col">
+                            {/* Platform header */}
+                            <div className={`flex items-center gap-2 px-4 py-2.5 ${style.platHeader}`}>
+                              <span className={`${pt.color} text-white text-xs px-2 py-0.5 rounded font-bold`}>{pt.abbr}</span>
+                              <span className="text-xs font-semibold text-gray-700">{pt.label}</span>
+                            </div>
+                            {/* Caption */}
+                            <div className="p-3 flex flex-col gap-2 flex-1">
+                              <Textarea
+                                value={platCaption}
+                                onChange={e => setWeeklyCaptions(prev => ({
+                                  ...prev,
+                                  [wp.day]: { ...(prev[wp.day] ?? wp.captions), [pt.key]: e.target.value }
+                                }))}
+                                rows={pt.key === 'google_business' ? 4 : 6}
+                                className="text-xs text-gray-700 leading-relaxed resize-none bg-gray-50 border-gray-200 w-full"
+                              />
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-400">{platCaption.length} chars</span>
+                                <button
+                                  onClick={() => handleWeeklyCopy(wp.day, pt.key)}
+                                  className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all ${
+                                    platCopied ? 'bg-green-100 text-green-700' : `${pt.color} text-white hover:opacity-90`
+                                  }`}
+                                >
+                                  {platCopied ? <Check size={11} /> : <Copy size={11} />}
+                                  {platCopied ? 'Copied!' : 'Copy'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* ── Footer: Schedule + Google ── */}
+                    <div className="px-4 border-t border-gray-100">
+                      {renderCardFooter(cardId, { templateType: wp.templateType, promptData: wp.promptData, captions: weeklyCaptions[wp.day] ?? wp.captions, imageUrl: imgUrl }, { emoji: tmpl?.emoji, label: tmpl?.label })}
                     </div>
                   </div>
                 )
