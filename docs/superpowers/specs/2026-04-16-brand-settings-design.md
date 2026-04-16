@@ -24,18 +24,17 @@ No new tables. Add columns to `accounts`. No changes to post generation UX — t
 
 ## Data Model
 
-### New columns on `accounts` table
+### Columns on `accounts` table
+
+**Already exist** (reuse as-is): `business_name`, `industry`, `description`, `website`, `phone`, `address`, `brand_voice`.
+
+**New columns to add:**
 
 | Column | Type | Notes |
 |---|---|---|
-| `website_url` | `TEXT` | nullable |
-| `phone` | `TEXT` | nullable, free-form (no format enforcement) |
-| `address` | `TEXT` | nullable, free-form single line |
 | `booking_url` | `TEXT` | nullable — Calendly, Square Appointments, etc. |
 | `topics_to_avoid` | `TEXT` | nullable, free-form (comma-separated or sentence) |
 | `example_posts` | `TEXT` | nullable, free-form; users paste 1–5 sample posts separated by blank lines |
-
-Existing columns stay as-is: `business_name`, `industry`, `brand_voice`, `description`.
 
 ### Migration file
 
@@ -97,7 +96,7 @@ export interface BrandSettings {
   brand_voice: string
   topics_to_avoid: string
   example_posts: string
-  website_url: string
+  website: string
   phone: string
   address: string
   booking_url: string
@@ -135,6 +134,8 @@ BRAND CONTEXT:
   [second example post text]
 ```
 
+(`Website` uses the `website` column. `Phone`, `Address`, `Booking link`, `Topics/words to avoid`, `Example posts` use the matching column names.)
+
 If `example_posts` is present, append a line: `Mirror the voice and rhythm of the example posts above.`
 
 If `topics_to_avoid` is present, append a line: `Do not use these words or topics in the caption.`
@@ -153,7 +154,7 @@ FACEBOOK: Medium-strength CTA. Use booking_url or website_url if present — URL
 GOOGLE BUSINESS: MANDATORY concrete CTA using real contact info. Priority order for what to use:
   1. booking_url → "Book at {booking_url}"
   2. phone → "Call {phone}"
-  3. website_url → "Learn more at {website_url}"
+  3. website → "Learn more at {website}"
   4. address → "Visit us at {address}"
   5. none of the above → "Contact us to get started."
 
