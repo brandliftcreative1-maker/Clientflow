@@ -637,10 +637,10 @@ export async function getCadenceSettings(): Promise<CadenceSettings> {
   const { user, account, supabase } = await getAccountAndUser()
   const defaults: CadenceSettings = {
     instagram_per_week: 3,
-    facebook_per_week: 2,
-    google_per_week: 1,
+    facebook_per_week: 3,
+    google_per_week: 3,
     reminder_type: 'dashboard',
-    preferred_days: { instagram: [1, 3, 5], facebook: [2, 4], google_business: [3] },
+    preferred_days: { instagram: [1, 3, 5], facebook: [2, 4, 6], google_business: [1, 3, 5] },
   }
   if (!user || !account) return defaults
 

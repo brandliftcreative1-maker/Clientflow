@@ -148,12 +148,6 @@ export default function SettingsPage() {
             <>
               <div>
                 <Label className="text-xs text-gray-500 uppercase tracking-wide mb-3 block">Posts per week</Label>
-                <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-900 leading-relaxed">
-                  <span className="font-semibold">Tip:</span> Businesses that grow fastest on social media post{' '}
-                  <span className="font-semibold">5–7× per week on Instagram</span> (daily is ideal, mix of feed + Reels),{' '}
-                  <span className="font-semibold">4–6× on Facebook</span>, and{' '}
-                  <span className="font-semibold">2–3× on Google Business</span> (posts expire after 7 days, so refresh weekly). Consistency is what the algorithm rewards — pick a cadence you can maintain.
-                </div>
                 <div className="flex flex-col gap-3">
                   {PLATFORMS.map(({ key, label, color, abbr }) => (
                     <div key={key} className="flex items-center justify-between">
