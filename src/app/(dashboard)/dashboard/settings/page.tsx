@@ -148,6 +148,12 @@ export default function SettingsPage() {
             <>
               <div>
                 <Label className="text-xs text-gray-500 uppercase tracking-wide mb-3 block">Posts per week</Label>
+                <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-100 text-xs text-blue-900 leading-relaxed">
+                  <span className="font-semibold">Tip:</span> Successful small businesses typically post{' '}
+                  <span className="font-semibold">3–5× per week on Instagram</span>,{' '}
+                  <span className="font-semibold">2–3× on Facebook</span>, and{' '}
+                  <span className="font-semibold">1–2× on Google Business</span>. Consistency beats frequency — pick a cadence you can stick to long-term.
+                </div>
                 <div className="flex flex-col gap-3">
                   {PLATFORMS.map(({ key, label, color, abbr }) => (
                     <div key={key} className="flex items-center justify-between">
